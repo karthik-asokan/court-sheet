@@ -47,7 +47,7 @@
           </div>
           <div class="score">
             <button class="step" type="button" data-score="winnerScore" data-delta="-1" aria-label="Winner score down">&minus;</button>
-            <input id="winnerScore" type="number" inputmode="numeric" min="0" max="30" placeholder="&ndash;" aria-label="Winner score">
+            <input id="winnerScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Winner score, 0 to 30">
             <button class="step" type="button" data-score="winnerScore" data-delta="1" aria-label="Winner score up">+</button>
           </div>
         </div>
@@ -62,7 +62,7 @@
           </div>
           <div class="score">
             <button class="step" type="button" data-score="loserScore" data-delta="-1" aria-label="Loser score down">&minus;</button>
-            <input id="loserScore" type="number" inputmode="numeric" min="0" max="30" placeholder="&ndash;" aria-label="Loser score">
+            <input id="loserScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Loser score, 0 to 30">
             <button class="step" type="button" data-score="loserScore" data-delta="1" aria-label="Loser score up">+</button>
           </div>
         </div>
@@ -88,9 +88,10 @@
   <dialog id="picker" class="sheet">
     <div class="sheet-head">
       <h2 id="picker-title" tabindex="-1" autofocus></h2>
-      <button id="picker-clear" class="link" type="button" hidden>Clear</button>
+      <button id="picker-clear" class="link danger" type="button" hidden>Clear all</button>
       <button id="picker-close" class="link" type="button">Done</button>
     </div>
+    <p id="picker-hint" class="picker-hint"></p>
     <input id="picker-search" class="field" type="text" placeholder="Search or add a player" aria-label="Search or add a player" autocapitalize="words" enterkeyhint="done">
     <div id="picker-grid" class="chips"></div>
     <p id="picker-empty" class="sheet-hint" hidden>No players yet. Connect in Settings to load your list, or type a name above.</p>

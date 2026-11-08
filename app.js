@@ -9,19 +9,23 @@
     ['loser2', 'Loser 2'],
   ];
   const SLOT_LABEL = Object.fromEntries(SLOTS);
+  const SLOT_TAG = { winner1: 'W1', winner2: 'W2', loser1: 'L1', loser2: 'L2' };
   const DEFAULT_WINNER_SCORE = 15;
   const MAX_SCORE = 30;
   const RETRY_MS = 20000;
+  const REFRESH_MS = 60000; // How often an open app checks for games from other phones.
 
   const state = {
     date: todayIso(),
     dateChosen: false, // Once the user picks a date, stop following today's date.
     names: { winner1: '', winner2: '', loser1: '', loser2: '' },
     editingId: null,
-    games: [],
+    games: [], // Games entered or changed on this phone.
+    day: null, // The Sheet's copy of the shown day, from the last connection.
     players: [],
-    pickerSlot: null,
+    pickerSlot: null, // The slot the next tap in the picker fills.
     uploading: false,
+    lastFetch: 0,
     configured: false,
     problem: null,
   };
@@ -45,6 +49,35 @@
   }
 
   const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const scoreText = (s) => (s === null || s === undefined || s === '' ? '–' : s);
+
+  /* ---------- The day's games ---------- */
+
+  // The Sheet's games for the day, in sheet order, with this phone's unsent changes on top.
+  // Games another phone entered show up once both phones have connected.
+  function dayGames() {
+    const local = state.games.filter((g) => g.date === state.date);
+    const localById = new Map(local.map((g) => [g.id, g]));
+    const list = [];
+    const seen = new Set();
+
+    if (state.day) {
+      state.day.rows.forEach((row) => {
+        const mine = row.id ? localById.get(row.id) : null;
+        if (mine) seen.add(mine.id);
+        if (mine && store.needsUpload(mine)) {
+          if (!mine.deleted) list.push(mine);
+        } else {
+          list.push({ ...row, date: state.date, rev: 0, syncedRev: 0, errorRev: null, fromSheet: true, otherPhone: !mine });
+        }
+      });
+      // Not on the Sheet yet. An uploaded game missing from it was deleted elsewhere.
+      local.filter((g) => !seen.has(g.id) && !g.deleted && store.needsUpload(g)).forEach((g) => list.push(g));
+    } else {
+      local.filter((g) => !g.deleted).forEach((g) => list.push(g));
+    }
+    return list;
+  }
 
   /* ---------- Rendering ---------- */
 
@@ -55,11 +88,12 @@
       btn.classList.toggle('empty', !name);
     });
 
-    const editing = state.editingId && state.games.find((g) => g.id === state.editingId);
+    const games = dayGames();
+    const editing = state.editingId && games.find((g) => g.id === state.editingId);
     $('edit-banner').hidden = !editing;
     $('cancel-edit').hidden = !editing;
     $('save').textContent = editing ? 'Update game' : 'Save game';
-    if (editing) $('edit-title').textContent = `Editing game ${dayGames().indexOf(editing) + 1}`;
+    if (editing) $('edit-title').textContent = `Editing game ${games.indexOf(editing) + 1}`;
 
     $('date').value = state.date;
     $('date').disabled = Boolean(editing);
@@ -68,15 +102,13 @@
     $('date-today').hidden = state.date !== todayIso();
   }
 
-  const dayGames = () => state.games.filter((g) => g.date === state.date && !g.deleted);
-
   function stateIcon(game) {
     const wrap = el('span', 'game-state');
     const failed = store.hasFailed(game);
     const pending = store.needsUpload(game);
     wrap.classList.toggle('pending', pending && !failed);
     wrap.classList.toggle('failed', failed);
-    wrap.title = failed ? 'Not uploaded: needs fixing' : pending ? 'Saved on this device, waiting to upload' : 'Uploaded';
+    wrap.title = failed ? 'Not uploaded: needs fixing' : pending ? 'Saved on this phone, waiting to upload' : 'On the Sheet';
     wrap.setAttribute('aria-label', wrap.title);
     wrap.setAttribute('role', 'img');
     const path = failed
@@ -101,15 +133,12 @@
       const btn = el('button', 'game');
       btn.type = 'button';
       btn.classList.toggle('editing', game.id === state.editingId);
-      btn.setAttribute('aria-label', `Edit game ${number}: ${game.winner1} and ${game.winner2} beat ${game.loser1} and ${game.loser2}, ${game.winnerScore} to ${game.loserScore}`);
+      const score = `${scoreText(game.winnerScore)}–${scoreText(game.loserScore)}`;
+      btn.setAttribute('aria-label', `Edit game ${number}: ${game.winner1} and ${game.winner2} beat ${game.loser1} and ${game.loser2}, ${score}`);
       const names = el('span', 'game-names');
       names.append(el('span', 'w', `${game.winner1} & ${game.winner2}`), el('span', 'l', `${game.loser1} & ${game.loser2}`));
-      btn.append(
-        el('span', 'game-num', number),
-        names,
-        el('span', 'game-score', `${game.winnerScore}–${game.loserScore}`),
-        stateIcon(game),
-      );
+      if (game.otherPhone) names.append(el('span', 'from', game.id ? 'Entered on another phone' : 'Typed into the Sheet'));
+      btn.append(el('span', 'game-num', number), names, el('span', 'game-score', score), stateIcon(game));
       if (store.hasFailed(game)) btn.append(el('span', 'game-error', game.error));
       btn.addEventListener('click', () => startEdit(game.id));
       item.append(btn);
@@ -145,12 +174,14 @@
 
   async function refresh() {
     state.games = await store.allGames();
+    state.day = (await store.getSetting('day:' + state.date)) || null;
     state.players = (await store.getSetting('players')) || [];
     state.configured = Boolean(await store.getSetting('url'));
     state.problem = await store.getSetting('lastProblem');
     renderForm();
     renderGames();
     renderStatus();
+    if ($('picker').open) renderPicker();
   }
 
   let toastTimer;
@@ -164,7 +195,7 @@
 
   /* ---------- Player picker ---------- */
 
-  // The saved list, plus anyone typed in on this device who has not reached the sheet yet.
+  // The saved list, plus anyone typed in on this phone who has not reached the Sheet yet.
   function knownPlayers() {
     const names = [...state.players];
     const add = (name) => {
@@ -175,52 +206,92 @@
     return names.sort((a, b) => a.localeCompare(b));
   }
 
+  // The first empty slot, searching onward from `after` and wrapping round.
+  function nextEmptySlot(after) {
+    const start = after ? SLOTS.findIndex(([s]) => s === after) + 1 : 0;
+    const hit = [...SLOTS.slice(start), ...SLOTS.slice(0, start)].find(([s]) => !state.names[s]);
+    return hit ? hit[0] : null;
+  }
+
+  function slotOf(name) {
+    const hit = SLOTS.find(([s]) => state.names[s] && sameName(state.names[s], name));
+    return hit ? hit[0] : null;
+  }
+
   function renderPicker() {
-    const slot = state.pickerSlot;
+    const target = state.pickerSlot;
     const query = $('picker-search').value.trim();
     const grid = $('picker-grid');
-    const taken = Object.entries(state.names).filter(([s, n]) => s !== slot && n).map(([, n]) => n);
     const players = knownPlayers();
     const matches = players.filter((n) => n.toLowerCase().includes(query.toLowerCase()));
+    const full = !target;
 
-    $('picker-title').textContent = SLOT_LABEL[slot];
-    $('picker-clear').hidden = !state.names[slot];
+    $('picker-title').textContent = full ? 'All four picked' : `Pick ${SLOT_LABEL[target]}`;
+    const hint = $('picker-hint');
+    hint.replaceChildren();
+    if (full) {
+      hint.textContent = 'Tap a name to remove them, or tap Done.';
+    } else {
+      hint.append('Tap a name again to remove them. ', el('span', 'w', 'Green'), ' = winners, ', el('span', 'l', 'red'), ' = losers.');
+    }
+    $('picker-clear').hidden = !Object.values(state.names).some(Boolean);
+    $('picker-search').disabled = full;
     $('picker-empty').hidden = players.length > 0 || query.length > 0;
 
     grid.replaceChildren();
     matches.forEach((name) => {
-      const chip = el('button', 'chip', name);
+      const slot = slotOf(name);
+      const chip = el('button', 'chip');
       chip.type = 'button';
-      chip.disabled = taken.some((t) => sameName(t, name));
-      chip.classList.toggle('current', state.names[slot] === name);
-      chip.addEventListener('click', () => choosePlayer(name));
+      chip.append(el('span', 'chip-name', name));
+      if (slot) {
+        chip.classList.add(slot.startsWith('winner') ? 'win' : 'lose');
+        chip.append(el('span', 'chip-tag', SLOT_TAG[slot]));
+        chip.setAttribute('aria-label', `${name}, ${SLOT_LABEL[slot]}. Tap to remove.`);
+      }
+      chip.setAttribute('aria-pressed', String(Boolean(slot)));
+      chip.disabled = full && !slot;
+      chip.addEventListener('click', () => togglePlayer(name));
       grid.append(chip);
     });
-    if (query && !players.some((n) => sameName(n, query))) {
+    if (query && !full && !players.some((n) => sameName(n, query))) {
       const add = el('button', 'chip add', `Add “${query}” as a new player`);
       add.type = 'button';
-      add.addEventListener('click', () => choosePlayer(query));
+      add.addEventListener('click', () => togglePlayer(query));
       grid.append(add);
     }
   }
 
   function openPicker(slot) {
-    state.pickerSlot = slot;
+    // Tapping an empty slot fills that one first; a filled slot just opens the picker.
+    state.pickerSlot = state.names[slot] ? nextEmptySlot() : slot;
     $('picker-search').value = '';
     renderPicker();
     if (!$('picker').open) $('picker').showModal();
   }
 
-  function choosePlayer(name) {
-    const slot = state.pickerSlot;
-    state.names[slot] = name;
+  function togglePlayer(name) {
+    const current = slotOf(name);
+    if (current) {
+      state.names[current] = '';
+      state.pickerSlot = current; // The next tap refills the slot just freed.
+    } else {
+      const target = state.pickerSlot && !state.names[state.pickerSlot] ? state.pickerSlot : nextEmptySlot();
+      if (!target) return;
+      state.names[target] = name;
+      state.pickerSlot = nextEmptySlot(target);
+    }
+    $('picker-search').value = '';
     clearError();
     renderForm();
-    // Move straight on to the next empty slot, so four names take four taps.
-    const start = SLOTS.findIndex(([s]) => s === slot);
-    const next = [...SLOTS.slice(start + 1), ...SLOTS.slice(0, start)].find(([s]) => !state.names[s]);
-    if (next) openPicker(next[0]);
-    else $('picker').close();
+    renderPicker();
+  }
+
+  function clearAllPlayers() {
+    SLOTS.forEach(([slot]) => { state.names[slot] = ''; });
+    state.pickerSlot = SLOTS[0][0];
+    renderForm();
+    renderPicker();
   }
 
   /* ---------- Saving ---------- */
@@ -231,6 +302,13 @@
   }
   function clearError() {
     $('form-error').hidden = true;
+  }
+
+  // Whole numbers from 0 to 30 only: anything else typed is dropped as it is typed.
+  function sanitizeScore(input) {
+    let value = input.value.replace(/\D/g, '').slice(0, 2);
+    if (value !== '') value = String(Math.min(MAX_SCORE, Number(value)));
+    if (input.value !== value) input.value = value;
   }
 
   function readScore(id) {
@@ -246,6 +324,17 @@
     if (!inRange(winnerScore) || !inRange(loserScore)) return `Scores must be whole numbers from 0 to ${MAX_SCORE}.`;
     if (winnerScore <= loserScore) return 'The winner score must be higher than the loser score.';
     return null;
+  }
+
+  // Another phone may already have recorded this game.
+  function findDuplicate(fields) {
+    const pair = (a, b) => [a, b].map((n) => n.trim().toLowerCase()).sort().join('|');
+    const games = dayGames();
+    const index = games.findIndex((g) => g.id !== state.editingId
+      && pair(g.winner1, g.winner2) === pair(fields.winner1, fields.winner2)
+      && pair(g.loser1, g.loser2) === pair(fields.loser1, fields.loser2)
+      && g.winnerScore === fields.winnerScore && g.loserScore === fields.loserScore);
+    return index < 0 ? 0 : index + 1;
   }
 
   function resetForm() {
@@ -268,18 +357,23 @@
     }
 
     const fields = { ...state.names, winnerScore, loserScore, notes: $('notes').value.trim() };
+    const duplicate = findDuplicate(fields);
+    if (duplicate && !confirm(`Game ${duplicate} already has these players and this score. Save it again anyway?`)) return;
+
     const editingId = state.editingId;
-    if (editingId) {
-      await store.updateGame(editingId, (g) => ({ ...g, ...fields, rev: g.rev + 1, errorRev: null, error: null }));
+    const mine = editingId && state.games.find((g) => g.id === editingId);
+    if (mine) {
+      await store.updateGame(editingId, (g) => ({ ...g, ...fields, deleted: false, rev: g.rev + 1, errorRev: null, error: null }));
     } else {
+      // A new game, or the first change on this phone to a game from the Sheet.
       await store.putGame({
-        id: crypto.randomUUID(),
+        id: editingId || crypto.randomUUID(),
         date: state.date,
         ...fields,
         createdAt: Date.now(),
         rev: 1,
         syncedRev: 0,
-        everSent: false,
+        everSent: Boolean(editingId),
         deleted: false,
       });
     }
@@ -290,13 +384,16 @@
   }
 
   function startEdit(id) {
-    const game = state.games.find((g) => g.id === id);
-    if (!game) return;
+    const game = id && dayGames().find((g) => g.id === id);
+    if (!game) {
+      toast('This game was typed into the Sheet. Change it there.');
+      return;
+    }
     state.editingId = id;
     SLOTS.forEach(([slot]) => { state.names[slot] = game[slot]; });
-    $('winnerScore').value = game.winnerScore;
-    $('loserScore').value = game.loserScore;
-    $('notes').value = game.notes;
+    $('winnerScore').value = game.winnerScore ?? '';
+    $('loserScore').value = game.loserScore ?? '';
+    $('notes').value = game.notes || '';
     clearError();
     renderForm();
     renderGames();
@@ -305,10 +402,15 @@
 
   async function deleteEditing() {
     const id = state.editingId;
-    const game = state.games.find((g) => g.id === id);
-    if (!game || !confirm(`Delete this game?\n${game.winner1} & ${game.winner2} ${game.winnerScore}–${game.loserScore} ${game.loser1} & ${game.loser2}`)) return;
-    // A game the sheet may already hold stays queued as a deletion until the sheet confirms it.
-    await store.updateGame(id, (g) => (g.everSent ? { ...g, deleted: true, rev: g.rev + 1, errorRev: null, error: null } : null));
+    const game = dayGames().find((g) => g.id === id);
+    if (!game || !confirm(`Delete this game?\n${game.winner1} & ${game.winner2} ${scoreText(game.winnerScore)}–${scoreText(game.loserScore)} ${game.loser1} & ${game.loser2}`)) return;
+    const mine = state.games.find((g) => g.id === id);
+    if (mine) {
+      // A game the Sheet may already hold stays queued as a deletion until the Sheet confirms it.
+      await store.updateGame(id, (g) => (g.everSent ? { ...g, deleted: true, rev: g.rev + 1, errorRev: null, error: null } : null));
+    } else {
+      await store.putGame({ ...game, fromSheet: undefined, otherPhone: undefined, createdAt: Date.now(), deleted: true, rev: 1, syncedRev: 0, errorRev: null, everSent: true });
+    }
     resetForm();
     await refresh();
     toast('Game deleted');
@@ -317,16 +419,18 @@
 
   /* ---------- Uploading ---------- */
 
-  async function uploadSoon(options) {
-    if (!navigator.onLine && !(options && options.force)) {
+  // Sends anything waiting and brings back the shown day's games from every phone.
+  async function uploadSoon() {
+    if (!navigator.onLine) {
       registerBackgroundSync();
       renderStatus();
       return null;
     }
     state.uploading = true;
     renderStatus();
-    const result = await store.upload(options);
+    const result = await store.upload({ dates: [state.date] });
     state.uploading = false;
+    if (result.state === 'ok') state.lastFetch = Date.now();
     await refresh();
     if (result.state === 'network') registerBackgroundSync();
     return result;
@@ -373,7 +477,7 @@
     await store.setSetting('url', url);
     await store.setSetting('passcode', passcode);
     settingsMessage('Testing…');
-    const result = await uploadSoon({ force: true });
+    const result = await uploadSoon();
     if (result && result.state === 'ok') {
       const count = (await store.getSetting('players') || []).length;
       settingsMessage(`Connected. ${count} players loaded.`);
@@ -403,20 +507,24 @@
   });
 
   $('form').addEventListener('submit', saveGame);
-  $('winnerScore').addEventListener('input', clearError);
-  $('loserScore').addEventListener('input', clearError);
+  ['winnerScore', 'loserScore'].forEach((id) => {
+    $(id).addEventListener('input', () => {
+      sanitizeScore($(id));
+      clearError();
+    });
+  });
   $('cancel-edit').addEventListener('click', async () => {
     resetForm();
     await refresh();
   });
   $('delete').addEventListener('click', deleteEditing);
 
-  $('date').addEventListener('change', () => {
+  $('date').addEventListener('change', async () => {
     if (!$('date').value) return;
     state.date = $('date').value;
     state.dateChosen = state.date !== todayIso();
-    renderForm();
-    renderGames();
+    await refresh();
+    uploadSoon();
   });
   // Desktop browsers open the calendar only from a small icon, so open it from anywhere on the row.
   $('date').addEventListener('click', () => {
@@ -427,15 +535,11 @@
   $('picker-search').addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    const first = $('picker-grid').querySelector('.chip:not([disabled])');
+    const first = $('picker-grid').querySelector('.chip:not([disabled]):not(.win):not(.lose)');
     if (first && $('picker-search').value.trim()) first.click();
   });
   $('picker-close').addEventListener('click', () => $('picker').close());
-  $('picker-clear').addEventListener('click', () => {
-    state.names[state.pickerSlot] = '';
-    renderForm();
-    renderPicker();
-  });
+  $('picker-clear').addEventListener('click', clearAllPlayers);
 
   $('status').addEventListener('click', () => {
     if (!state.configured || state.problem) openSettings();
@@ -460,10 +564,12 @@
     uploadSoon();
   });
 
-  // The online event can miss a weak signal, so keep trying while games are waiting.
+  // The online event can miss a weak signal, so keep trying while games are waiting,
+  // and check now and then for games from other phones.
   setInterval(() => {
+    if (state.uploading || !navigator.onLine || !state.configured || document.visibilityState !== 'visible') return;
     const waiting = state.games.some((g) => store.needsUpload(g) && !store.hasFailed(g));
-    if (waiting && !state.uploading && navigator.onLine) uploadSoon();
+    if (waiting || Date.now() - state.lastFetch > REFRESH_MS) uploadSoon();
   }, RETRY_MS);
 
   if ('serviceWorker' in navigator) {
@@ -476,6 +582,6 @@
   resetForm();
   refresh().then(() => {
     if (!state.configured) openSettings();
-    else uploadSoon({ force: true });
+    else uploadSoon();
   });
 })();

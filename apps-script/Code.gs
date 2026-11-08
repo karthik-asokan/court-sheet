@@ -31,26 +31,57 @@ function doPost(e) {
     return reply_({ ok: false, error: 'Wrong passcode.' });
   }
 
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(20000);
-  } catch (err) {
-    return reply_({ ok: false, error: 'The sheet is busy. Try again in a moment.' });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const games = request.games || [];
+  let results = [];
+  // Only writes need the lock, so phones that are just checking for new games never wait.
+  if (games.length) {
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(20000);
+    } catch (err) {
+      return reply_({ ok: false, error: 'The sheet is busy. Try again in a moment.' });
+    }
+    try {
+      results = games.map((game) => {
+        try {
+          saveGame_(ss, game);
+          return { id: game.id, ok: true };
+        } catch (err) {
+          return { id: game.id, ok: false, error: err.message };
+        }
+      });
+    } finally {
+      lock.releaseLock();
+    }
   }
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const results = (request.games || []).map((game) => {
-      try {
-        saveGame_(ss, game);
-        return { id: game.id, ok: true };
-      } catch (err) {
-        return { id: game.id, ok: false, error: err.message };
-      }
-    });
-    return reply_({ ok: true, results: results, players: activePlayers_(ss), sheetUrl: ss.getUrl() });
-  } finally {
-    lock.releaseLock();
-  }
+
+  // Send back every game on the days asked about, so each phone sees what the others entered.
+  const days = {};
+  (request.dates || []).concat(games.map((g) => g.date)).forEach((date) => {
+    if (DATE_TAB.test(String(date))) days[date] = readDay_(ss, date);
+  });
+  return reply_({ ok: true, results: results, days: days, players: activePlayers_(ss), sheetUrl: ss.getUrl() });
+}
+
+// A day's games in sheet order. Rows typed straight into the Sheet have no ID.
+function readDay_(ss, date) {
+  const tab = ss.getSheetByName(date);
+  if (!tab || tab.getLastRow() < 2) return [];
+  const text = (v) => String(v).trim();
+  const score = (v) => (v === '' ? null : Number(v));
+  return tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues()
+    .map((r) => ({
+      id: text(r[8]),
+      winner1: text(r[1]),
+      winner2: text(r[2]),
+      winnerScore: score(r[3]),
+      loserScore: score(r[4]),
+      loser1: text(r[5]),
+      loser2: text(r[6]),
+      notes: text(r[7]),
+    }))
+    .filter((g) => g.winner1 || g.winner2 || g.loser1 || g.loser2);
 }
 
 function reply_(body) {

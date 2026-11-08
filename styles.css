@@ -12,6 +12,7 @@
   --on-court-line: rgba(255, 255, 255, .78);
   --wait: #9A6B00;
   --danger: #B3402E;
+  --lose: #B3402E;
   --radius: 18px;
   --shadow: 0 1px 2px rgba(23, 33, 30, .06), 0 8px 24px rgba(23, 33, 30, .06);
 }
@@ -259,6 +260,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .game-names span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-names .w { font-weight: 650; }
 .game-names .l { color: var(--muted); }
+.game-names .from { color: var(--muted); font-size: 12px; font-style: italic; }
 .game-score { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .game-state { display: grid; place-items: center; color: var(--court-strong); }
 .game-state.pending { color: var(--wait); }
@@ -289,21 +291,29 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .sheet-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
 .sheet-head h2 { flex: 1; margin: 0; font-size: 18px; font-weight: 700; outline: none; }
 .sheet-hint { margin: 12px 2px 4px; color: var(--muted); font-size: 14px; }
+.picker-hint { margin: 0 2px 10px; color: var(--muted); font-size: 13px; }
+.picker-hint .w { color: var(--court-strong); font-weight: 700; }
+.picker-hint .l { color: var(--danger); font-weight: 700; }
 
 .chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   min-height: 46px;
   padding: 6px 8px;
-  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   font-size: 15px;
   font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.chip.current { border-color: var(--court); background: var(--court); color: var(--on-court); }
+.chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-tag { flex: none; font-size: 11px; font-weight: 750; letter-spacing: .03em; opacity: .9; }
+.chip.win { border-color: var(--court); background: var(--court); color: #FFFFFF; }
+.chip.lose { border-color: var(--lose); background: var(--lose); color: #FFFFFF; }
 .chip[disabled] { opacity: .35; cursor: default; }
 .chip.add {
   grid-column: 1 / -1;

@@ -44,12 +44,19 @@ Open the app, go to **Settings**, enter the URL and passcode, and tap **Save and
 
 ## Using it
 
-- **Add a game:** tap a player slot and pick four names. The picker moves to the next slot by itself. Set the scores and tap **Save game**.
+- **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Set the scores and tap **Save game**.
+- **Scores:** whole numbers from 0 to 30. Anything else is ignored as you type, and the winner's score must be higher.
 - **Add a new player:** type the name in the picker's search box. They join the `Players` tab as a guest; change that in the Sheet if needed.
-- **Fix a mistake:** tap a game in the list to edit or delete it. The Sheet follows.
+- **Fix a mistake:** tap any game in the list to edit or delete it, including games entered on another phone. The Sheet follows.
 - **Enter a past day:** tap the date at the top.
 - **Remove someone from the picker:** set `Active` to `no` on the `Players` tab.
 - **Status at the top:** `All uploaded`, `2 waiting` (saved on the phone), `Offline`, `1 to fix` (the Sheet rejected a game, and the reason appears in the list) or `Check settings` (wrong passcode or script problem).
+
+## Several people entering scores
+
+Everyone who has the web app URL and passcode can enter games. Each phone's list shows the whole day from the Sheet, with games from other phones marked **Entered on another phone**. Another phone's games appear once it has uploaded them and your phone has connected since. An open app checks about once a minute, and tapping the status at the top checks straight away.
+
+If you try to save a game whose players and score match one already in the list, the app asks before saving it again. Rows typed straight into the Sheet appear in the list but can only be changed in the Sheet.
 
 ## How uploads work
 

@@ -93,11 +93,11 @@
     }
   }
 
-  async function exchange(url, passcode, batch) {
+  async function exchange(url, passcode, batch, dates) {
     const sentRevs = new Map(batch.map((g) => [g.id, g.rev]));
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
-    const reply = await post(url, { passcode, games: batch.map(toPayload) });
+    const reply = await post(url, { passcode, games: batch.map(toPayload), dates });
     if (!reply.ok) {
       const err = new Error(reply.error || 'The script returned an error.');
       err.rejected = true;
@@ -105,6 +105,10 @@
     }
     if (reply.players) await setSetting('players', reply.players);
     if (reply.sheetUrl) await setSetting('sheetUrl', reply.sheetUrl);
+    // Saved before the games below are marked uploaded, so the list never briefly loses one.
+    for (const [date, rows] of Object.entries(reply.days || {})) {
+      await setSetting('day:' + date, { rows, fetchedAt: Date.now() });
+    }
 
     for (const result of reply.results || []) {
       await updateGame(result.id, (cur) => {
@@ -117,7 +121,8 @@
     return reply;
   }
 
-  async function uploadAll(force) {
+  // Always makes at least one request, which also brings back the latest games for `dates`.
+  async function uploadAll(dates) {
     const url = await getSetting('url');
     const passcode = await getSetting('passcode');
     if (!url) return { state: 'unconfigured' };
@@ -126,8 +131,8 @@
     try {
       for (;;) {
         const queue = (await allGames()).filter((g) => needsUpload(g) && !hasFailed(g));
-        if (!queue.length && (lastReply || !force)) break;
-        lastReply = await exchange(url, passcode, queue.slice(0, BATCH_SIZE));
+        if (!queue.length && lastReply) break;
+        lastReply = await exchange(url, passcode, queue.slice(0, BATCH_SIZE), dates);
       }
     } catch (err) {
       const state = err.rejected ? 'rejected' : 'network';
@@ -139,12 +144,12 @@
   }
 
   // Page and service worker may both try at once; only one runs.
-  async function upload({ force = false } = {}) {
+  async function upload({ dates = [] } = {}) {
     if (root.navigator.locks) {
       return root.navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) =>
-        lock ? uploadAll(force) : { state: 'busy' });
+        lock ? uploadAll(dates) : { state: 'busy' });
     }
-    return uploadAll(force);
+    return uploadAll(dates);
   }
 
   root.CourtSheet = {
