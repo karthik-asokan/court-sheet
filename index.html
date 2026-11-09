@@ -17,7 +17,7 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Mavericks</h1>
+    <h1>Mavericks games</h1>
     <button id="status" class="status" type="button" aria-live="polite"></button>
     <button id="open-settings" class="icon-btn" type="button" aria-label="Settings">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
@@ -46,9 +46,7 @@
             <button class="slot" type="button" data-slot="winner2"></button>
           </div>
           <div class="score">
-            <button class="step" type="button" data-score="winnerScore" data-delta="-1" aria-label="Winner score down">&minus;</button>
             <input id="winnerScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Winner score, 0 to 21">
-            <button class="step" type="button" data-score="winnerScore" data-delta="1" aria-label="Winner score up">+</button>
           </div>
         </div>
       </section>
@@ -61,14 +59,11 @@
             <button class="slot" type="button" data-slot="loser2"></button>
           </div>
           <div class="score">
-            <button class="step" type="button" data-score="loserScore" data-delta="-1" aria-label="Loser score down">&minus;</button>
             <input id="loserScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Loser score, 0 to 21">
-            <button class="step" type="button" data-score="loserScore" data-delta="1" aria-label="Loser score up">+</button>
           </div>
         </div>
       </section>
 
-      <input id="notes" class="notes" type="text" maxlength="200" placeholder="Notes (optional)" aria-label="Notes">
 
       <p id="form-error" class="form-error" role="alert" hidden></p>
 

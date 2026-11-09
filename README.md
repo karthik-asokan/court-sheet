@@ -5,7 +5,7 @@ An offline-first web app for recording the Mavericks club's badminton doubles re
 Each month gets its own points-system file in your Google Drive **games** folder, for example `Mavericks_Points System_Scores_Nov' 26`. The script creates it from a template when that month's first game arrives. Inside it:
 
 - **`MONTHLY`**: Player of the Month.
-- **One games tab per play day**, such as `08-NOV`, with the columns `GAME NO., PLAYER 1, PLAYER 2, SCORE, POINTS, VS, PLAYER 3, PLAYER 4, SCORE, POINTS`. The winners are always Players 1 and 2. A `NOTES` column follows, and a hidden `ID` column stops retries creating duplicate rows.
+- **One games tab per play day**, such as `08-NOV`, with the columns `GAME NO., PLAYER 1, PLAYER 2, SCORE, POINTS, VS, PLAYER 3, PLAYER 4, SCORE, POINTS`. The winners are always Players 1 and 2. A `NOTES` column follows for anything you type straight into the sheet (the app has no notes box, and keeps a game's notes when you edit it), and a hidden `ID` column stops retries creating duplicate rows.
 - **One Player of the Day tab per play day**, such as `08-NOV POTD`.
 
 The Player of the Day and `MONTHLY` tabs have the club logo on the left of the title and the player silhouette on the right. The script adds them from this site ([`icons/icon-192.png`](icons/icon-192.png) and [`images/silhouette.png`](images/silhouette.png)) to any such tab that has no pictures yet.
@@ -58,7 +58,7 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 
 ## Using it
 
-- **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Set the scores and tap **Save game**.
+- **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Type the two scores and tap **Save game**.
 - **Guests:** tap **GUEST** once for each guest playing. Several guests can play in one game.
 - **Scores:** games are to 15, so 15–13 or less is a normal finish. From 14 all the game goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21: at 20 all, the next point wins 21–20. Any other score, such as 15–14, 18–10 or 16–5, is refused. Only whole numbers are accepted as you type, up to 21.
 - **Add a new player:** type the name in the picker's search box. They join the Players tab as active.

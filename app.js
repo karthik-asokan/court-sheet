@@ -20,6 +20,7 @@
     date: todayIso(),
     dateChosen: false, // Once the user picks a date, stop following today's date.
     names: { winner1: '', winner2: '', loser1: '', loser2: '' },
+    notes: '', // The game being edited keeps its notes from the sheet.
     editingId: null,
     games: [], // Games entered or changed on this phone.
     day: null, // The Sheet's copy of the shown day, from the last connection.
@@ -384,7 +385,7 @@
     state.editingId = null;
     $('winnerScore').value = DEFAULT_WINNER_SCORE;
     $('loserScore').value = '';
-    $('notes').value = '';
+    state.notes = '';
     clearError();
   }
 
@@ -398,7 +399,7 @@
       return;
     }
 
-    const fields = { ...state.names, winnerScore, loserScore, notes: $('notes').value.trim() };
+    const fields = { ...state.names, winnerScore, loserScore, notes: state.notes };
     const duplicate = findDuplicate(fields);
     if (duplicate && !confirm(`Game ${duplicate} already has these players and this score. Save it again anyway?`)) return;
 
@@ -435,7 +436,7 @@
     SLOTS.forEach(([slot]) => { state.names[slot] = game[slot]; });
     $('winnerScore').value = game.winnerScore ?? '';
     $('loserScore').value = game.loserScore ?? '';
-    $('notes').value = game.notes || '';
+    state.notes = game.notes || ''; // Kept as is: notes can only be changed in the sheet.
     clearError();
     renderForm();
     renderGames();
@@ -529,15 +530,6 @@
 
   document.querySelectorAll('.slot').forEach((btn) => {
     btn.addEventListener('click', () => openPicker(btn.dataset.slot));
-  });
-
-  document.querySelectorAll('.step').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const input = $(btn.dataset.score);
-      const current = input.value === '' ? 0 : Number(input.value);
-      input.value = Math.min(MAX_SCORE, Math.max(0, current + Number(btn.dataset.delta)));
-      clearError();
-    });
   });
 
   $('form').addEventListener('submit', saveGame);

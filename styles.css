@@ -168,13 +168,14 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .team-win .slot { border-color: var(--on-court-line); background: var(--on-court-soft); }
 .team-win .slot.empty { color: var(--on-court); background: transparent; }
 
-.score { display: grid; grid-template-columns: 38px 62px 38px; align-items: center; }
+.score { width: 84px; }
 .score input {
   width: 100%;
   height: 72px;
   padding: 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
   font-size: 44px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
@@ -186,20 +187,11 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .score input::-webkit-outer-spin-button,
 .score input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .score input::placeholder { color: inherit; opacity: .35; }
-.step {
-  width: 38px;
-  height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--bg);
-  font-size: 22px;
-  line-height: 1;
-}
-.team-win .step { background: var(--on-court-soft); color: var(--on-court); }
+.team-win .score input { border-color: var(--on-court-line); background: var(--on-court-soft); color: var(--on-court); }
 .team-win :focus-visible { outline-color: var(--on-court); }
 
 /* Fields and buttons */
-.notes, .field {
+.field {
   width: 100%;
   min-height: 46px;
   padding: 10px 14px;
@@ -207,7 +199,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   border-radius: 12px;
   background: var(--surface);
 }
-.notes::placeholder, .field::placeholder { color: var(--muted); }
+.field::placeholder { color: var(--muted); }
 
 .form-error { margin: 10px 2px 0; color: var(--danger); font-size: 14px; font-weight: 550; }
 
