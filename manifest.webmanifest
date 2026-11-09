@@ -1,12 +1,12 @@
 {
-  "name": "Court Sheet",
-  "short_name": "Court Sheet",
+  "name": "Mavericks games",
+  "short_name": "Mavericks games",
   "description": "Record badminton doubles results, online or offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F4F2EC",
+  "background_color": "#000000",
   "theme_color": "#1F6F5C",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
