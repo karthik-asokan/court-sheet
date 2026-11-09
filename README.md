@@ -59,6 +59,7 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 ## Using it
 
 - **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Type the two scores and tap **Save game**.
+- **Player of the Day:** a gold trophy card between **Save game** and the games list shows the day's Player of the Day and their points, read from that day's POTD tab. Joint winners are each listed. It updates whenever the phone connects; while this phone has games waiting to upload, it says so.
 - **Guests:** tap **GUEST** once for each guest playing. Several guests can play in one game.
 - **Scores:** games are to 15, so 15–13 or less is a normal finish. From 14 all the game goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21: at 20 all, the next point wins 21–20. Any other score, such as 15–14, 18–10 or 16–5, is refused. Only whole numbers are accepted as you type, up to 21.
 - **Add a new player:** type the name in the picker's search box. They join the Players tab as active.

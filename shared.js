@@ -106,7 +106,8 @@
     if (reply.players) await setSetting('players', reply.players);
     // Saved before the games below are marked uploaded, so the list never briefly loses one.
     for (const [date, rows] of Object.entries(reply.days || {})) {
-      await setSetting('day:' + date, { rows, fetchedAt: Date.now() });
+      const award = (reply.awards && reply.awards[date]) || null; // Older scripts send none.
+      await setSetting('day:' + date, { rows, award, fetchedAt: Date.now() });
     }
 
     for (const result of reply.results || []) {

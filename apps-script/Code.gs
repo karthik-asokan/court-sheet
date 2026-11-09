@@ -21,6 +21,7 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 const MONTHLY = 'MONTHLY';
 const DAY_PROTO = 'DAY';
 const POTD_PROTO = 'DAY POTD';
+const POTD_LABEL = 'PLAYER OF THE DAY';
 const DAY_HEADERS = ['GAME NO.', 'PLAYER 1', 'PLAYER 2', 'SCORE', 'POINTS', '', 'PLAYER 3', 'PLAYER 4', 'SCORE', 'POINTS', 'NOTES', 'ID'];
 const DAY_WIDTHS = [90, 120, 120, 75, 75, 40, 120, 120, 75, 75, 170];
 const ID_COLUMN = DAY_HEADERS.length;
@@ -99,13 +100,19 @@ function doPost(e) {
 
   // Send back every game on the days asked about, so each phone sees what the others entered.
   const dates = (request.dates || []).concat(games.map((g) => g.date)).filter((d) => ISO_DATE.test(String(d)));
+  if (games.length) SpreadsheetApp.flush(); // So the award formulas below reflect these games.
   const days = {};
-  dates.forEach((date) => { days[date] = readDay_(date); });
+  const awards = {};
+  dates.forEach((date) => {
+    days[date] = readDay_(date);
+    awards[date] = readAward_(date);
+  });
   const shown = dates.length ? monthFile_(dates[0], false) : null;
   return reply_({
     ok: true,
     results: results,
     days: days,
+    awards: awards,
     players: activePlayers_(control),
     sheetUrl: shown ? shown.getUrl() : folder_().getUrl(),
     warnings: warnings,
@@ -205,6 +212,21 @@ function readDay_(date) {
       notes: text(r[10]),
     }))
     .filter((g) => g.winner1 || g.winner2 || g.loser1 || g.loser2);
+}
+
+// The day's Player of the Day, as worked out by the formulas on its POTD tab:
+// { names: ['A', 'B'], points: 12 }, or null before anyone has played.
+function readAward_(date) {
+  const ss = monthFile_(date, false);
+  const tab = ss && ss.getSheetByName(dayTabName_(date) + ' POTD');
+  if (!tab || tab.getLastRow() < 3) return null;
+  const rows = tab.getRange(3, 1, tab.getLastRow() - 2, 6).getValues();
+  const row = rows.find((r) => String(r[0]).trim() === POTD_LABEL);
+  if (!row) return null;
+  const names = String(row[1]).split(',').map((n) => n.trim()).filter(Boolean);
+  const points = Number(row[5]);
+  if (!names.length || row[5] === '' || !isFinite(points)) return null;
+  return { names: names, points: points };
 }
 
 /* ---------- Monthly files and day tabs ---------- */
@@ -348,7 +370,7 @@ function refreshDay_(control, date) {
     if (potd) ss.deleteSheet(potd);
   } else if (games && potd) {
     const title = 'POTD\n\n' + date.slice(8, 10) + '-' + MONTHS[Number(date.slice(5, 7)) - 1] + '-' + date.slice(0, 4);
-    writeStats_(potd, title, statsPlayers_(control, [games]), [name], 'PLAYER OF THE DAY');
+    writeStats_(potd, title, statsPlayers_(control, [games]), [name], POTD_LABEL);
   }
   const days = ss.getSheets().filter((s) => DAY_TAB.test(s.getName()));
   const monthly = ss.getSheetByName(MONTHLY) || ss.insertSheet(MONTHLY, 0);

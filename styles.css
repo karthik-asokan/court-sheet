@@ -13,6 +13,10 @@
   --wait: #9A6B00;
   --danger: #B3402E;
   --lose: #B3402E;
+  --gold: #C08A12;
+  --gold-soft: #FBF3DF;
+  --gold-line: #EBD7A6;
+  --gold-text: #8A5F00;
   --radius: 18px;
   --shadow: 0 1px 2px rgba(23, 33, 30, .06), 0 8px 24px rgba(23, 33, 30, .06);
 }
@@ -28,6 +32,10 @@
     --court-strong: #2A8C75;
     --wait: #E3B341;
     --danger: #F0836F;
+    --gold: #B88512;
+    --gold-soft: #2A2414;
+    --gold-line: #4A3D1C;
+    --gold-text: #E8BE5A;
     --shadow: none;
   }
 }
@@ -228,6 +236,35 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .link.danger { color: var(--danger); }
 
 /* Games list */
+/* Player of the day */
+.potd {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--gold-line);
+  border-radius: 16px;
+  background: var(--gold-soft);
+}
+.potd-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #FFFFFF;
+}
+.potd-body { flex: 1; min-width: 0; }
+.potd-label { margin: 0 0 2px; color: var(--gold-text); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.potd-list { margin: 0; padding: 0; list-style: none; }
+.potd-row { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+.potd-name { overflow: hidden; font-size: 19px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.potd-points { flex: none; color: var(--gold-text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.potd-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
 .games { margin-top: 26px; }
 .games h2 { margin: 0 2px 8px; font-size: 15px; font-weight: 700; }
 .games-empty { margin: 0 2px; color: var(--muted); font-size: 14px; }

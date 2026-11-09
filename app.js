@@ -148,6 +148,23 @@
     });
   }
 
+  // The sheet's Player of the Day for the shown date, from the POTD tab's own calculation.
+  function renderAward() {
+    const award = state.day && state.day.award;
+    const card = $('potd');
+    card.hidden = !award || !award.names || !award.names.length;
+    if (card.hidden) return;
+    const pts = (n) => `${String(n).replace('-', '−')} ${Math.abs(n) === 1 ? 'pt' : 'pts'}`;
+    $('potd-label').textContent = award.names.length > 1 ? 'Players of the day' : 'Player of the day';
+    const list = $('potd-list');
+    list.replaceChildren(...award.names.map((name) => {
+      const item = el('li', 'potd-row');
+      item.append(el('span', 'potd-name', name), el('span', 'potd-points', pts(award.points)));
+      return item;
+    }));
+    $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
+  }
+
   function renderStatus() {
     const queued = state.games.filter(store.needsUpload);
     const failed = queued.filter(store.hasFailed).length;
@@ -182,6 +199,7 @@
     state.problem = await store.getSetting('lastProblem');
     renderForm();
     renderGames();
+    renderAward();
     renderStatus();
     if ($('picker').open) renderPicker();
   }
