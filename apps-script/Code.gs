@@ -129,6 +129,11 @@ function reply_(body) {
 // so a connection that drops mid-upload can never create a duplicate.
 function saveGame_(control, game) {
   validateGame_(game);
+  // Every player must already be in the Players tab (or be GUEST). Checked before any file or tab
+  // is created, so a refused game leaves nothing behind. Names are written as the tab spells them.
+  const players = game.deleted ? [] : readPlayers_(control);
+  const [winner1, winner2, loser1, loser2] = game.deleted ? []
+    : [game.winner1, game.winner2, game.loser1, game.loser2].map((name) => listedName_(players, name));
   const ss = monthFile_(game.date, !game.deleted);
   if (!ss) return; // Deleting from a month that has no file: nothing to do.
   const tab = dayTab_(ss, game.date, !game.deleted);
@@ -140,18 +145,17 @@ function saveGame_(control, game) {
     return;
   }
 
-  [game.winner1, game.winner2, game.loser1, game.loser2].forEach((name) => ensurePlayer_(control, name));
   const r = existing || Math.max(tab.getLastRow(), 1) + 1;
   tab.getRange(r, 1, 1, ID_COLUMN).setValues([[
     '=ROW()-1',
-    safeText_(game.winner1),
-    safeText_(game.winner2),
+    safeText_(winner1),
+    safeText_(winner2),
     game.winnerScore,
     // Winner: 2 for a deuce win (above 15) or holding the loser to 7 or below, otherwise 1.
     `=IF(OR(D${r}="",I${r}=""),"",IF(OR(D${r}>15,I${r}<=7),2,1))`,
     'VS',
-    safeText_(game.loser1),
-    safeText_(game.loser2),
+    safeText_(loser1),
+    safeText_(loser2),
     game.loserScore,
     // Loser: -1 when held to 7 or below, otherwise 0.
     `=IF(OR(D${r}="",I${r}=""),"",IF(I${r}<=7,-1,0))`,
@@ -486,16 +490,14 @@ function activePlayers_(control) {
   return names;
 }
 
-// Someone typed into the app joins the Players tab. Filled in by column name, so the tab's
-// columns can be reordered or added to.
-function ensurePlayer_(control, name) {
-  const wanted = name.trim().toLowerCase();
-  if (wanted === GUEST.toLowerCase()) return;
-  if (readPlayers_(control).some((p) => p.name.toLowerCase() === wanted)) return;
-  const tab = ensurePlayersTab_(control);
-  const values = { name: safeText_(name.trim()), active: 'yes' };
-  const headers = tab.getRange(1, 1, 1, tab.getLastColumn()).getValues()[0];
-  tab.appendRow(headers.map((h) => values[String(h).trim().toLowerCase()] || ''));
+// The Players tab's spelling of `name`, or GUEST. Inactive players still count, so a game
+// recorded before someone was set to `no` can still be saved. New players are added in the tab only.
+function listedName_(players, name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (wanted === GUEST.toLowerCase()) return GUEST;
+  const found = players.find((p) => p.name.toLowerCase() === wanted);
+  if (!found) throw new Error('"' + String(name).trim() + '" isn\'t in the Players tab. Add them there first.');
+  return found.name;
 }
 
 // Stops typed text being run as a spreadsheet formula.
