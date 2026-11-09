@@ -83,7 +83,12 @@
 
   /* ---------- Rendering ---------- */
 
+  // Only today's games can be changed in the app. Other days are view-only; change them in the sheet.
+  const viewOnly = () => state.date !== todayIso();
+
   function renderForm() {
+    $('form').hidden = viewOnly();
+    $('past-note').hidden = !viewOnly();
     document.querySelectorAll('.slot').forEach((btn) => {
       const name = state.names[btn.dataset.slot];
       btn.textContent = name || SLOT_LABEL[btn.dataset.slot];
@@ -97,6 +102,7 @@
     $('save').textContent = editing ? 'Update game' : 'Save game';
     if (editing) $('edit-title').textContent = `Editing game ${games.indexOf(editing) + 1}`;
 
+    $('date').max = todayIso();
     $('date').value = state.date;
     $('date').disabled = Boolean(editing);
     document.querySelector('.date-row').classList.toggle('locked', Boolean(editing));
@@ -197,6 +203,7 @@
     state.players = (await store.getSetting('players')) || [];
     state.configured = Boolean(await store.getSetting('url'));
     state.problem = await store.getSetting('lastProblem');
+    if (viewOnly() && state.editingId) resetForm(); // Midnight passed mid-edit.
     renderForm();
     renderGames();
     renderAward();
@@ -411,7 +418,7 @@
     event.preventDefault();
     const winnerScore = readScore('winnerScore');
     const loserScore = readScore('loserScore');
-    const problem = validate(winnerScore, loserScore);
+    const problem = viewOnly() ? 'Only today\'s games can be saved. Change other days in the sheet.' : validate(winnerScore, loserScore);
     if (problem) {
       showError(problem);
       return;
@@ -444,8 +451,20 @@
     uploadSoon();
   }
 
-  function startEdit(id) {
+  async function startEdit(id) {
     const game = id && dayGames().find((g) => g.id === id);
+    if (viewOnly()) {
+      // A change made here on a past day that never reached the sheet can't upload any more.
+      const mine = id && state.games.find((g) => g.id === id && store.needsUpload(g));
+      if (mine && confirm('This change is from a past day, so it can no longer upload. Remove it from this phone?\nIf it should count, enter it in the sheet by hand.')) {
+        await store.removeGame(id);
+        await refresh();
+        toast('Removed from this phone');
+      } else if (!mine) {
+        toast('Past days are view-only. Change them in the sheet.');
+      }
+      return;
+    }
     if (!game) {
       toast('This game was typed into the Sheet. Change it there.');
       return;
@@ -464,6 +483,7 @@
   async function deleteEditing() {
     const id = state.editingId;
     const game = dayGames().find((g) => g.id === id);
+    if (viewOnly()) return;
     if (!game || !confirm(`Delete this game?\n${game.winner1} & ${game.winner2} ${scoreText(game.winnerScore)}–${scoreText(game.loserScore)} ${game.loser1} & ${game.loser2}`)) return;
     const mine = state.games.find((g) => g.id === id);
     if (mine) {
@@ -565,7 +585,7 @@
 
   $('date').addEventListener('change', async () => {
     if (!$('date').value) return;
-    state.date = $('date').value;
+    state.date = $('date').value > todayIso() ? todayIso() : $('date').value; // No future dates.
     state.dateChosen = state.date !== todayIso();
     await refresh();
     uploadSoon();
@@ -611,6 +631,11 @@
   // The online event can miss a weak signal, so keep trying while games are waiting,
   // and check now and then for games from other phones.
   setInterval(() => {
+    // Left open past midnight on today's page: move on to the new day.
+    if (!state.dateChosen && !state.editingId && state.date !== todayIso()) {
+      state.date = todayIso();
+      refresh();
+    }
     if (state.uploading || !navigator.onLine || !state.configured || document.visibilityState !== 'visible') return;
     const waiting = state.games.some((g) => store.needsUpload(g) && !store.hasFailed(g));
     if (waiting || Date.now() - state.lastFetch > REFRESH_MS) uploadSoon();

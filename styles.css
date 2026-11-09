@@ -236,6 +236,15 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .link.danger { color: var(--danger); }
 
 /* Games list */
+.past-note {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 /* Player of the day */
 .potd {
   display: flex;

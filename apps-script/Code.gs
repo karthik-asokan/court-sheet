@@ -160,10 +160,21 @@ function saveGame_(control, game) {
   ]]);
 }
 
+// Today's date as yyyy-MM-dd, in the time zone set under Project Settings in the Apps Script editor.
+function today_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
 function validateGame_(game) {
   if (!game.id) throw new Error('Game has no ID.');
   if (!ISO_DATE.test(game.date || '') || isNaN(new Date(game.date + 'T00:00:00Z'))) {
     throw new Error('Invalid date.');
+  }
+  // Only today's games can be added, changed or deleted from the app; other days are changed in
+  // the sheet. "Today" is Google's clock in the script's time zone, so a phone's clock can't move it.
+  const today = today_();
+  if (game.date !== today) {
+    throw new Error('Only today\'s games (' + today + ') can be added, changed or deleted in the app. Change other days in the sheet.');
   }
   if (game.deleted) return;
 

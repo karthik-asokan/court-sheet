@@ -39,6 +39,7 @@ Your player names live only in your Google Sheet, never in this repository, whic
 3. At the top, set `PASSCODE` to a passcode of your own.
 4. Set `FOLDER_ID` to your games folder's ID: open the folder in Drive and copy the code after `/folders/` in the address bar.
 5. Save, choose **setUp** in the function menu at the top, and click **Run**. Approve the permissions when asked. Google warns that the app isn't verified because it's your own script: choose **Advanced**, then **Go to (project name)**. This creates **Mavericks Template** in the games folder.
+6. Open **Project Settings** (the gear on the left) and check **Time zone** is yours. The script uses it to decide what "today" is.
 
 You can restyle the template's fonts, colours and widths. New months copy its `MONTHLY` tab and its hidden `DAY` and `DAY POTD` tabs. Keep the column order and tab names.
 
@@ -63,8 +64,8 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 - **Guests:** tap **GUEST** once for each guest playing. Several guests can play in one game.
 - **Scores:** games are to 15, so 15–13 or less is a normal finish. From 14 all the game goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21: at 20 all, the next point wins 21–20. Any other score, such as 15–14, 18–10 or 16–5, is refused. Only whole numbers are accepted as you type, up to 21.
 - **Add a new player:** type the name in the picker's search box. They join the Players tab as active.
-- **Fix a mistake:** tap any game in the list to edit or delete it, including games entered on another phone. The sheet follows. Deleting a day's last game removes that day's tabs.
-- **Enter a past day:** tap the date at the top. Games go into the file for that day's month.
+- **Fix a mistake:** on the day itself, tap any game in the list to edit or delete it, including games entered on another phone. The sheet follows. Deleting a day's last game removes that day's tabs.
+- **Only today can be changed:** tap the date at the top to look back at a past day's games and Player of the Day, but past days are view-only, and future dates can't be picked. The script enforces this with Google's clock, so changing a phone's date doesn't get round it. To change a past day, edit the sheet. Games that didn't upload before midnight are refused and show as `to fix`; tap one to remove it from the phone, and enter it in the sheet if it should count.
 - **Status at the top:** `All uploaded`, `2 waiting` (saved on the phone), `Offline`, `1 to fix` (the sheet rejected a game; the reason appears in the list) or `Check settings` (wrong passcode, missing folder ID or a script problem).
 
 ## Several people entering scores
