@@ -12,6 +12,7 @@ const FOLDER_ID = 'paste-your-folder-id';
 const TEMPLATE_NAME = 'Mavericks Template';
 const FILE_PREFIX = 'Mavericks_Points System_Scores_';
 const GUEST = 'GUEST';
+const GAME_TO = 15;
 const MAX_SCORE = 21;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_TAB = /^(\d\d)-[A-Z]{3}$/;
@@ -170,10 +171,11 @@ function validateGame_(game) {
     throw new Error('Scores must be whole numbers from 0 to ' + MAX_SCORE + '.');
   }
   if (game.winnerScore <= game.loserScore) throw new Error('The winner score must be higher than the loser score.');
-  // Win by 2, except at the 21-point cap: from 20 all, the next point wins.
-  if (game.winnerScore - game.loserScore < 2 && !(game.winnerScore === MAX_SCORE && game.loserScore === MAX_SCORE - 1)) {
-    throw new Error('The winner must be at least 2 points ahead. The only exception is 21–20.');
-  }
+  // Games are to 15. From 14 all they go on until one side is 2 ahead, with a hard stop at 21.
+  const w = game.winnerScore, l = game.loserScore;
+  const realFinish = w === GAME_TO ? l <= GAME_TO - 2
+    : w > GAME_TO && w <= MAX_SCORE && (w - l === 2 || (w === MAX_SCORE && l === MAX_SCORE - 1));
+  if (!realFinish) throw new Error('A game ends at 15 with the losers on 13 or less. From 14 all it goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21–20.');
 }
 
 function findRow_(tab, id) {

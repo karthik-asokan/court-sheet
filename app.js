@@ -349,6 +349,13 @@
     return raw === '' ? null : Number(raw);
   }
 
+  // Games are to 15. From 14 all they go on until one side is 2 ahead, with a hard stop at 21.
+  const GAME_TO = 15;
+  function realFinish(w, l) {
+    if (w === GAME_TO) return l <= GAME_TO - 2;
+    return w > GAME_TO && w <= MAX_SCORE && (w - l === 2 || (w === MAX_SCORE && l === MAX_SCORE - 1));
+  }
+
   function validate(winnerScore, loserScore) {
     const names = Object.values(state.names);
     if (names.some((n) => !n)) return 'Pick all four players.';
@@ -356,10 +363,7 @@
     const inRange = (s) => Number.isInteger(s) && s >= 0 && s <= MAX_SCORE;
     if (!inRange(winnerScore) || !inRange(loserScore)) return `Scores must be whole numbers from 0 to ${MAX_SCORE}.`;
     if (winnerScore <= loserScore) return 'The winner score must be higher than the loser score.';
-    // Win by 2, except at the 21-point cap: from 20 all, the next point wins.
-    if (winnerScore - loserScore < 2 && !(winnerScore === MAX_SCORE && loserScore === MAX_SCORE - 1)) {
-      return 'The winner must be at least 2 points ahead. The only exception is 21–20.';
-    }
+    if (!realFinish(winnerScore, loserScore)) return 'A game ends at 15 with the losers on 13 or less. From 14 all it goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21–20.';
     return null;
   }
 

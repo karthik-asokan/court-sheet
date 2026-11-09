@@ -1,5 +1,5 @@
 // Change VERSION whenever any app file changes, so phones pick up the new copy.
-const VERSION = 'v8';
+const VERSION = 'v9';
 const CACHE = 'court-sheet-' + VERSION;
 const FILES = [
   './',
