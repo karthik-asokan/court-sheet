@@ -48,7 +48,7 @@
             <button class="slot" type="button" data-slot="winner2"></button>
           </div>
           <div class="score">
-            <input id="winnerScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Winner score, 0 to 21">
+            <output id="winnerScore" class="score-fixed" for="loserScore" aria-label="Winner score, worked out from the losers' score">15</output>
           </div>
         </div>
       </section>
@@ -61,7 +61,7 @@
             <button class="slot" type="button" data-slot="loser2"></button>
           </div>
           <div class="score">
-            <input id="loserScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Loser score, 0 to 21">
+            <input id="loserScore" class="score-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="&ndash;" aria-label="Losers' score, 0 to 20">
           </div>
         </div>
       </section>
@@ -101,9 +101,10 @@
     </div>
     <p id="picker-hint" class="picker-hint"></p>
     <div id="picker-slots" class="slot-strip"></div>
-    <input id="picker-search" class="field" type="text" placeholder="Search or add a player" aria-label="Search or add a player" autocapitalize="words" enterkeyhint="done">
+    <input id="picker-search" class="field" type="text" placeholder="Search players" aria-label="Search players" autocapitalize="words" enterkeyhint="done">
     <div id="picker-grid" class="chips"></div>
-    <p id="picker-empty" class="sheet-hint" hidden>No players yet. Connect in Settings to load your list, or type a name above.</p>
+    <p id="picker-empty" class="sheet-hint" hidden>No players yet. Connect in Settings to load your list.</p>
+    <p id="picker-none" class="sheet-hint" hidden>No player by that name. New players are added in the Players tab of the Mavericks Players sheet.</p>
   </dialog>
 
   <dialog id="settings" class="sheet">

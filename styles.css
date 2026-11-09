@@ -195,7 +195,16 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .score input::-webkit-outer-spin-button,
 .score input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .score input::placeholder { color: inherit; opacity: .35; }
-.team-win .score input { border-color: var(--on-court-line); background: var(--on-court-soft); color: var(--on-court); }
+/* The winners' score follows from the losers' score, so it's shown, not typed. */
+.score-fixed {
+  display: grid;
+  place-items: center;
+  height: 72px;
+  font-size: 44px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.03em;
+}
 .team-win :focus-visible { outline-color: var(--on-court); }
 
 /* Fields and buttons */

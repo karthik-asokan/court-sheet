@@ -313,12 +313,8 @@
       chip.addEventListener('click', () => togglePlayer(name));
       grid.append(chip);
     });
-    if (query && !full && !players.some((n) => sameName(n, query))) {
-      const add = el('button', 'chip add', `Add “${query}” as a new player`);
-      add.type = 'button';
-      add.addEventListener('click', () => togglePlayer(query));
-      grid.append(add);
-    }
+    // New players are added in the sheet's Players tab, not here.
+    $('picker-none').hidden = !query || matches.length > 0;
   }
 
   function openPicker(slot) {
@@ -363,10 +359,10 @@
     $('form-error').hidden = true;
   }
 
-  // Whole numbers from 0 to 21 only: anything else typed is dropped as it is typed.
+  // The losers' score: whole numbers from 0 to 20 only. Anything else typed is dropped as it is typed.
   function sanitizeScore(input) {
     let value = input.value.replace(/\D/g, '').slice(0, 2);
-    if (value !== '') value = String(Math.min(MAX_SCORE, Number(value)));
+    if (value !== '') value = String(Math.min(LOSER_MAX, Number(value)));
     if (input.value !== value) input.value = value;
   }
 
@@ -377,6 +373,17 @@
 
   // Games are to 15. From 14 all they go on until one side is 2 ahead, with a hard stop at 21.
   const GAME_TO = 15;
+  const LOSER_MAX = MAX_SCORE - 1;
+
+  // The winners' score follows from the losers': 15 if they reached 13 or less, 2 ahead from 14 all,
+  // and 21 if it went to 20 all.
+  function winnerFor(loserScore) {
+    if (loserScore === null || loserScore <= GAME_TO - 2) return GAME_TO;
+    return Math.min(MAX_SCORE, loserScore + 2);
+  }
+  function showWinnerScore() {
+    $('winnerScore').value = String(winnerFor(readScore('loserScore')));
+  }
   function realFinish(w, l) {
     if (w === GAME_TO) return l <= GAME_TO - 2;
     return w > GAME_TO && w <= MAX_SCORE && (w - l === 2 || (w === MAX_SCORE && l === MAX_SCORE - 1));
@@ -385,10 +392,10 @@
   function validate(winnerScore, loserScore) {
     const names = Object.values(state.names);
     if (names.some((n) => !n)) return 'Pick all four players.';
-    if (winnerScore === null || loserScore === null) return 'Enter both scores.';
-    const inRange = (s) => Number.isInteger(s) && s >= 0 && s <= MAX_SCORE;
-    if (!inRange(winnerScore) || !inRange(loserScore)) return `Scores must be whole numbers from 0 to ${MAX_SCORE}.`;
-    if (winnerScore <= loserScore) return 'The winner score must be higher than the loser score.';
+    if (loserScore === null) return 'Enter the losers\' score.';
+    if (!Number.isInteger(loserScore) || loserScore < 0 || loserScore > LOSER_MAX) {
+      return `The losers' score must be a whole number from 0 to ${LOSER_MAX}.`;
+    }
     if (!realFinish(winnerScore, loserScore)) return 'A game ends at 15 with the losers on 13 or less. From 14 all it goes on until one side is 2 ahead (16–14, 17–15 … 21–19), with a hard stop at 21–20.';
     return null;
   }
@@ -471,8 +478,8 @@
     }
     state.editingId = id;
     SLOTS.forEach(([slot]) => { state.names[slot] = game[slot]; });
-    $('winnerScore').value = game.winnerScore ?? '';
     $('loserScore').value = game.loserScore ?? '';
+    showWinnerScore();
     state.notes = game.notes || ''; // Kept as is: notes can only be changed in the sheet.
     clearError();
     renderForm();
@@ -571,11 +578,10 @@
   });
 
   $('form').addEventListener('submit', saveGame);
-  ['winnerScore', 'loserScore'].forEach((id) => {
-    $(id).addEventListener('input', () => {
-      sanitizeScore($(id));
-      clearError();
-    });
+  $('loserScore').addEventListener('input', () => {
+    sanitizeScore($('loserScore'));
+    showWinnerScore();
+    clearError();
   });
   $('cancel-edit').addEventListener('click', async () => {
     resetForm();
