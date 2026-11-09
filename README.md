@@ -60,7 +60,7 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 
 - **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Set the scores and tap **Save game**.
 - **Guests:** tap **GUEST** once for each guest playing. Several guests can play in one game.
-- **Scores:** whole numbers from 0 to 30. Anything else is ignored as you type, and the winner's score must be higher.
+- **Scores:** whole numbers from 0 to 21. Anything else is ignored as you type. The winner must be at least 2 points ahead, except 21–20: at 20 all, the next point wins.
 - **Add a new player:** type the name in the picker's search box. They join the Players tab as active.
 - **Fix a mistake:** tap any game in the list to edit or delete it, including games entered on another phone. The sheet follows. Deleting a day's last game removes that day's tabs.
 - **Enter a past day:** tap the date at the top. Games go into the file for that day's month.

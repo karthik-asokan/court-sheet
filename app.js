@@ -12,7 +12,7 @@
   const SLOT_TAG = { winner1: 'W1', winner2: 'W2', loser1: 'L1', loser2: 'L2' };
   const GUEST = 'GUEST'; // Visitors share this name, so it can fill several slots.
   const DEFAULT_WINNER_SCORE = 15;
-  const MAX_SCORE = 30;
+  const MAX_SCORE = 21;
   const RETRY_MS = 20000;
   const REFRESH_MS = 60000; // How often an open app checks for games from other phones.
 
@@ -337,7 +337,7 @@
     $('form-error').hidden = true;
   }
 
-  // Whole numbers from 0 to 30 only: anything else typed is dropped as it is typed.
+  // Whole numbers from 0 to 21 only: anything else typed is dropped as it is typed.
   function sanitizeScore(input) {
     let value = input.value.replace(/\D/g, '').slice(0, 2);
     if (value !== '') value = String(Math.min(MAX_SCORE, Number(value)));
@@ -356,6 +356,10 @@
     const inRange = (s) => Number.isInteger(s) && s >= 0 && s <= MAX_SCORE;
     if (!inRange(winnerScore) || !inRange(loserScore)) return `Scores must be whole numbers from 0 to ${MAX_SCORE}.`;
     if (winnerScore <= loserScore) return 'The winner score must be higher than the loser score.';
+    // Win by 2, except at the 21-point cap: from 20 all, the next point wins.
+    if (winnerScore - loserScore < 2 && !(winnerScore === MAX_SCORE && loserScore === MAX_SCORE - 1)) {
+      return 'The winner must be at least 2 points ahead. The only exception is 21–20.';
+    }
     return null;
   }
 

@@ -12,7 +12,7 @@ const FOLDER_ID = 'paste-your-folder-id';
 const TEMPLATE_NAME = 'Mavericks Template';
 const FILE_PREFIX = 'Mavericks_Points System_Scores_';
 const GUEST = 'GUEST';
-const MAX_SCORE = 30;
+const MAX_SCORE = 21;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_TAB = /^(\d\d)-[A-Z]{3}$/;
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -170,6 +170,10 @@ function validateGame_(game) {
     throw new Error('Scores must be whole numbers from 0 to ' + MAX_SCORE + '.');
   }
   if (game.winnerScore <= game.loserScore) throw new Error('The winner score must be higher than the loser score.');
+  // Win by 2, except at the 21-point cap: from 20 all, the next point wins.
+  if (game.winnerScore - game.loserScore < 2 && !(game.winnerScore === MAX_SCORE && game.loserScore === MAX_SCORE - 1)) {
+    throw new Error('The winner must be at least 2 points ahead. The only exception is 21–20.');
+  }
 }
 
 function findRow_(tab, id) {
