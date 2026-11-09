@@ -10,6 +10,7 @@
   ];
   const SLOT_LABEL = Object.fromEntries(SLOTS);
   const SLOT_TAG = { winner1: 'W1', winner2: 'W2', loser1: 'L1', loser2: 'L2' };
+  const GUEST = 'GUEST'; // Visitors share this name, so it can fill several slots.
   const DEFAULT_WINNER_SCORE = 15;
   const MAX_SCORE = 30;
   const RETRY_MS = 20000;
@@ -213,12 +214,38 @@
     return hit ? hit[0] : null;
   }
 
-  function slotOf(name) {
-    const hit = SLOTS.find(([s]) => state.names[s] && sameName(state.names[s], name));
-    return hit ? hit[0] : null;
+  const isGuest = (name) => sameName(name, GUEST);
+
+  // The slots a name fills. Only GUEST can fill more than one.
+  function slotsOf(name) {
+    return SLOTS.map(([s]) => s).filter((s) => state.names[s] && sameName(state.names[s], name));
+  }
+
+  function renderSlotStrip(target) {
+    const strip = $('picker-slots');
+    strip.replaceChildren();
+    SLOTS.forEach(([slot, label]) => {
+      const name = state.names[slot];
+      const btn = el('button', 'strip-slot ' + (slot.startsWith('winner') ? 'win' : 'lose'));
+      btn.type = 'button';
+      btn.classList.toggle('empty', !name);
+      btn.classList.toggle('target', slot === target);
+      btn.append(el('span', 'strip-tag', SLOT_TAG[slot]), el('span', 'strip-name', name || '–'));
+      btn.setAttribute('aria-label', name ? `${label}: ${name}. Tap to remove.` : `${label}: empty. Tap to fill next.`);
+      btn.addEventListener('click', () => {
+        state.names[slot] = '';
+        state.pickerSlot = slot;
+        clearError();
+        renderForm();
+        renderPicker();
+      });
+      strip.append(btn);
+    });
   }
 
   function renderPicker() {
+    // The slot to fill next must be empty; the form may have changed since it was chosen.
+    if (!state.pickerSlot || state.names[state.pickerSlot]) state.pickerSlot = nextEmptySlot();
     const target = state.pickerSlot;
     const query = $('picker-search').value.trim();
     const grid = $('picker-grid');
@@ -230,27 +257,33 @@
     const hint = $('picker-hint');
     hint.replaceChildren();
     if (full) {
-      hint.textContent = 'Tap a name to remove them, or tap Done.';
+      hint.textContent = 'Tap a name or a slot to remove them, or tap Done.';
     } else {
-      hint.append('Tap a name again to remove them. ', el('span', 'w', 'Green'), ' = winners, ', el('span', 'l', 'red'), ' = losers.');
+      hint.append(el('span', 'w', 'Green'), ' = winners, ', el('span', 'l', 'red'), ' = losers. Tap a name or slot again to remove them. GUEST can be picked more than once.');
     }
+    renderSlotStrip(target);
     $('picker-clear').hidden = !Object.values(state.names).some(Boolean);
     $('picker-search').disabled = full;
     $('picker-empty').hidden = players.length > 0 || query.length > 0;
 
     grid.replaceChildren();
     matches.forEach((name) => {
-      const slot = slotOf(name);
+      const slots = slotsOf(name);
+      const guest = isGuest(name);
       const chip = el('button', 'chip');
       chip.type = 'button';
       chip.append(el('span', 'chip-name', name));
-      if (slot) {
-        chip.classList.add(slot.startsWith('winner') ? 'win' : 'lose');
-        chip.append(el('span', 'chip-tag', SLOT_TAG[slot]));
-        chip.setAttribute('aria-label', `${name}, ${SLOT_LABEL[slot]}. Tap to remove.`);
+      if (slots.length) {
+        const sides = new Set(slots.map((s) => (s.startsWith('winner') ? 'win' : 'lose')));
+        chip.classList.add(sides.size > 1 ? 'mixed' : [...sides][0]);
+        chip.append(el('span', 'chip-tag', slots.map((s) => SLOT_TAG[s]).join(' ')));
+        chip.setAttribute('aria-label', guest
+          ? `${name}, ${slots.map((s) => SLOT_LABEL[s]).join(' and ')}. Tap to add another guest.`
+          : `${name}, ${SLOT_LABEL[slots[0]]}. Tap to remove.`);
       }
-      chip.setAttribute('aria-pressed', String(Boolean(slot)));
-      chip.disabled = full && !slot;
+      chip.setAttribute('aria-pressed', String(slots.length > 0));
+      // Guests are added each tap and removed from the slots above; others toggle.
+      chip.disabled = full && (guest || !slots.length);
       chip.addEventListener('click', () => togglePlayer(name));
       grid.append(chip);
     });
@@ -271,7 +304,7 @@
   }
 
   function togglePlayer(name) {
-    const current = slotOf(name);
+    const current = isGuest(name) ? null : slotsOf(name)[0];
     if (current) {
       state.names[current] = '';
       state.pickerSlot = current; // The next tap refills the slot just freed.
@@ -339,6 +372,7 @@
 
   function resetForm() {
     state.names = { winner1: '', winner2: '', loser1: '', loser2: '' };
+    state.pickerSlot = null;
     state.editingId = null;
     $('winnerScore').value = DEFAULT_WINNER_SCORE;
     $('loserScore').value = '';
@@ -535,7 +569,7 @@
   $('picker-search').addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    const first = $('picker-grid').querySelector('.chip:not([disabled]):not(.win):not(.lose)');
+    const first = $('picker-grid').querySelector('.chip:not([disabled]):not(.win):not(.lose):not(.mixed)');
     if (first && $('picker-search').value.trim()) first.click();
   });
   $('picker-close').addEventListener('click', () => $('picker').close());

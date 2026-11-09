@@ -314,6 +314,30 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .chip-tag { flex: none; font-size: 11px; font-weight: 750; letter-spacing: .03em; opacity: .9; }
 .chip.win { border-color: var(--court); background: var(--court); color: #FFFFFF; }
 .chip.lose { border-color: var(--lose); background: var(--lose); color: #FFFFFF; }
+.chip.mixed { border-color: var(--court); background: linear-gradient(90deg, var(--court) 50%, var(--lose) 50%); color: #FFFFFF; }
+
+/* The four slots at the top of the picker; tap one to clear it. */
+.slot-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+.strip-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  min-height: 46px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.strip-slot.win { background: var(--court); }
+.strip-slot.lose { background: var(--lose); }
+.strip-slot.empty { border: 1px dashed var(--line); background: var(--surface); color: var(--muted); font-weight: 500; }
+.strip-slot.target { outline: 2px solid var(--ink); outline-offset: 1px; }
+.strip-tag { font-size: 10px; font-weight: 750; letter-spacing: .04em; opacity: .85; }
+.strip-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip[disabled] { opacity: .35; cursor: default; }
 .chip.add {
   grid-column: 1 / -1;
