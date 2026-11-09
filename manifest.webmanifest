@@ -1,6 +1,6 @@
 {
-  "name": "Mavericks games",
-  "short_name": "Mavericks games",
+  "name": "Mavericks",
+  "short_name": "Mavericks",
   "description": "Record badminton doubles results, online or offline.",
   "start_url": "./",
   "scope": "./",

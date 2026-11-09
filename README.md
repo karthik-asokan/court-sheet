@@ -1,4 +1,4 @@
-# Mavericks games
+# Mavericks
 
 An offline-first web app for recording the Mavericks club's badminton doubles results at the court. Games are saved on the phone first, then uploaded to Google Sheets as soon as there is a connection.
 

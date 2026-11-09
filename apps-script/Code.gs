@@ -1,5 +1,5 @@
 /**
- * Mavericks games backend, bound to the "Mavericks Players" sheet (which holds the Players tab).
+ * Mavericks backend, bound to the "Mavericks Players" sheet (which holds the Players tab).
  * Each month's games go into their own points-system file in the games folder, copied from the
  * template. Setup steps are in the README.
  */
@@ -28,7 +28,7 @@ const STAT_WIDTHS = [130, 100, 85, 85, 85, 80];
 const PLAYER_HEADERS = ['Name', 'Active'];
 
 function doGet() {
-  return ContentService.createTextOutput('Mavericks games script is running.');
+  return ContentService.createTextOutput('Mavericks script is running.');
 }
 
 // Run this once from the editor: it asks for Google's permissions and creates the Players tab
