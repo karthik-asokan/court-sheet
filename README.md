@@ -8,6 +8,8 @@ Each month gets its own points-system file in your Google Drive **games** folder
 - **One games tab per play day**, such as `08-NOV`, with the columns `GAME NO., PLAYER 1, PLAYER 2, SCORE, POINTS, VS, PLAYER 3, PLAYER 4, SCORE, POINTS`. The winners are always Players 1 and 2. A `NOTES` column follows, and a hidden `ID` column stops retries creating duplicate rows.
 - **One Player of the Day tab per play day**, such as `08-NOV POTD`.
 
+The Player of the Day and `MONTHLY` tabs have the club logo on the left of the title and the player silhouette on the right. The script adds them from this site ([`icons/icon-192.png`](icons/icon-192.png) and [`images/silhouette.png`](images/silhouette.png)) to any such tab that has no pictures yet.
+
 ## Points
 
 | Result | Winners each | Losers each |

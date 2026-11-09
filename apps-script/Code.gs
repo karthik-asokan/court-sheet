@@ -25,6 +25,11 @@ const DAY_WIDTHS = [90, 120, 120, 75, 75, 40, 120, 120, 75, 75, 170];
 const ID_COLUMN = DAY_HEADERS.length;
 const STAT_HEADERS = ['PLAYER', 'TOTAL\nGAMES PLAYED', 'GAMES WON', 'GAMES LOST', 'WIN\nRATE %', 'POINTS'];
 const STAT_WIDTHS = [130, 100, 85, 85, 85, 80];
+// Pictures in the title row of every POTD and MONTHLY tab, served with the app.
+const LOGO_URL = 'https://karthik-asokan.github.io/court-sheet/icons/icon-192.png';
+const SILHOUETTE_URL = 'https://karthik-asokan.github.io/court-sheet/images/silhouette.png';
+const SILHOUETTE_RATIO = 203 / 183; // width / height
+const TITLE_HEIGHT = 130;
 const PLAYER_HEADERS = ['Name', 'Active'];
 
 function doGet() {
@@ -269,10 +274,26 @@ function styleDayTab_(tab) {
 function styleStatsTab_(tab) {
   tab.getRange(1, 1, 1, 6).merge().setFontWeight('bold').setFontSize(14).setWrap(true)
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
-  tab.setRowHeight(1, 70);
   tab.getRange(2, 1, 1, 6).setValues([STAT_HEADERS]).setFontWeight('bold').setFontLine('underline')
     .setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
   STAT_WIDTHS.forEach((width, i) => tab.setColumnWidth(i + 1, width));
+  addTitlePictures_(tab);
+}
+
+// The club logo at the left of the title row and the player silhouette at the right. Skipped
+// if the tab already has pictures, so a tab you've restyled by hand is left alone.
+function addTitlePictures_(tab) {
+  try {
+    if (tab.getImages().length) return;
+    tab.setRowHeight(1, TITLE_HEIGHT);
+    const size = TITLE_HEIGHT - 8;
+    tab.insertImage(LOGO_URL, 1, 1, 4, 4).setWidth(size).setHeight(size);
+    const width = Math.round(size * SILHOUETTE_RATIO);
+    const offset = Math.max(0, STAT_WIDTHS[4] + STAT_WIDTHS[5] - width - 4);
+    tab.insertImage(SILHOUETTE_URL, 5, 1, offset, 4).setWidth(width).setHeight(size);
+  } catch (err) {
+    console.warn('Could not add the title pictures: ' + err); // Decoration only; carry on.
+  }
 }
 
 // The day's games tab, plus its POTD tab, created from the hidden templates in date order.
@@ -353,6 +374,7 @@ function statsPlayers_(control, dayTabs) {
 // the award row underneath. Formulas keep it right if a game is corrected by hand in the sheet.
 function writeStats_(tab, title, players, dayNames, label) {
   tab.getRange(1, 1).setValue(title);
+  addTitlePictures_(tab); // For tabs made before the pictures existed, or copied without them.
   const body = tab.getRange(3, 1, tab.getMaxRows() - 2, 6);
   body.breakApart().clearContent().setFontWeight('normal').setBackground(null);
   if (!players.length) return;
