@@ -63,7 +63,6 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 - **Fix a mistake:** tap any game in the list to edit or delete it, including games entered on another phone. The sheet follows. Deleting a day's last game removes that day's tabs.
 - **Enter a past day:** tap the date at the top. Games go into the file for that day's month.
 - **Status at the top:** `All uploaded`, `2 waiting` (saved on the phone), `Offline`, `1 to fix` (the sheet rejected a game; the reason appears in the list) or `Check settings` (wrong passcode, missing folder ID or a script problem).
-- **Open this month's sheet:** the link at the bottom of Settings.
 
 ## Several people entering scores
 

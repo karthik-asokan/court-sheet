@@ -104,7 +104,6 @@
       throw err;
     }
     if (reply.players) await setSetting('players', reply.players);
-    if (reply.sheetUrl) await setSetting('sheetUrl', reply.sheetUrl);
     // Saved before the games below are marked uploaded, so the list never briefly loses one.
     for (const [date, rows] of Object.entries(reply.days || {})) {
       await setSetting('day:' + date, { rows, fetchedAt: Date.now() });

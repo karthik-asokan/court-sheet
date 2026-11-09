@@ -483,14 +483,7 @@
     $('set-url').value = (await store.getSetting('url')) || '';
     $('set-pass').value = (await store.getSetting('passcode')) || '';
     $('settings-msg').hidden = true;
-    await renderSheetLink();
     if (!$('settings').open) $('settings').showModal();
-  }
-
-  async function renderSheetLink() {
-    const url = await store.getSetting('sheetUrl');
-    $('sheet-link').hidden = !url;
-    if (url) $('sheet-link').href = url;
   }
 
   function settingsMessage(text, bad) {
@@ -522,7 +515,6 @@
     } else {
       settingsMessage('Could not reach the script. Check you are online, the URL ends in /exec, and the deployment allows access by “Anyone”.', true);
     }
-    await renderSheetLink();
   }
 
   /* ---------- Wiring ---------- */

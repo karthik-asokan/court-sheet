@@ -350,13 +350,6 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .settings-msg { margin: 12px 2px 0; font-size: 14px; font-weight: 550; color: var(--court-strong); }
 .settings-msg.bad { color: var(--danger); }
 #settings-form .btn { margin-top: 14px; }
-.sheet-link {
-  display: block;
-  padding: 14px 0 4px;
-  color: var(--court-strong);
-  font-weight: 650;
-  text-align: center;
-}
 
 /* Toast */
 .toast {
