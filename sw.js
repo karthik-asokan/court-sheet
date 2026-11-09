@@ -1,5 +1,5 @@
 // Change VERSION whenever any app file changes, so phones pick up the new copy.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'court-sheet-' + VERSION;
 const FILES = [
   './',
@@ -17,7 +17,10 @@ const FILES = [
 importScripts('shared.js');
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // 'reload' skips the browser's own cache. GitHub Pages lets browsers reuse files for 10 minutes,
+  // which could otherwise save an old copy of a page into the new version.
+  const fresh = FILES.map((f) => new Request(f, { cache: 'reload' }));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
