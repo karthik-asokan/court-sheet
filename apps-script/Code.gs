@@ -8,6 +8,10 @@
 const PASSCODE = 'change-me';
 // The ID of your "games" folder: the code after /folders/ in the folder's web address.
 const FOLDER_ID = 'paste-your-folder-id';
+// Optional: a second passcode that only you know. Entered as "Owner passcode" in a phone's
+// Settings, it lets that phone add, change and delete games on past days too. Leave it as ''
+// to turn owner mode off. It must be different from PASSCODE.
+const OWNER_PASSCODE = '';
 
 const TEMPLATE_NAME = 'Mavericks Template';
 const FILE_PREFIX = 'Mavericks_Points System_Scores_';
@@ -22,6 +26,7 @@ const MONTHLY = 'MONTHLY';
 const DAY_PROTO = 'DAY';
 const POTD_PROTO = 'DAY POTD';
 const POTD_LABEL = 'PLAYER OF THE DAY';
+const POTM_LABEL = 'PLAYER OF THE MONTH';
 const DAY_HEADERS = ['GAME NO.', 'PLAYER 1', 'PLAYER 2', 'SCORE', 'POINTS', '', 'PLAYER 3', 'PLAYER 4', 'SCORE', 'POINTS', 'NOTES', 'ID'];
 const DAY_WIDTHS = [90, 120, 120, 75, 75, 40, 120, 120, 75, 75, 170];
 const ID_COLUMN = DAY_HEADERS.length;
@@ -62,6 +67,9 @@ function doPost(e) {
     return reply_({ ok: false, error: 'Paste your games folder ID into FOLDER_ID, then deploy a new version.' });
   }
 
+  // Owner mode: a second passcode that also allows changes to past days.
+  const owner = OWNER_PASSCODE !== '' && OWNER_PASSCODE !== PASSCODE && request.ownerPasscode === OWNER_PASSCODE;
+
   const control = SpreadsheetApp.getActiveSpreadsheet();
   const games = request.games || [];
   let results = [];
@@ -78,7 +86,7 @@ function doPost(e) {
       const touched = new Set();
       results = games.map((game) => {
         try {
-          saveGame_(control, game);
+          saveGame_(control, game, owner);
           touched.add(game.date);
           return { id: game.id, ok: true };
         } catch (err) {
@@ -103,9 +111,12 @@ function doPost(e) {
   if (games.length) SpreadsheetApp.flush(); // So the award formulas below reflect these games.
   const days = {};
   const awards = {};
+  const months = {};
   dates.forEach((date) => {
     days[date] = readDay_(date);
     awards[date] = readAward_(date);
+    const month = date.slice(0, 7);
+    if (!(month in months)) months[month] = readMonthAward_(date);
   });
   const shown = dates.length ? monthFile_(dates[0], false) : null;
   return reply_({
@@ -113,6 +124,9 @@ function doPost(e) {
     results: results,
     days: days,
     awards: awards,
+    months: months,
+    owner: owner,
+    ownerTried: Boolean(request.ownerPasscode),
     players: activePlayers_(control),
     sheetUrl: shown ? shown.getUrl() : folder_().getUrl(),
     warnings: warnings,
@@ -127,8 +141,8 @@ function reply_(body) {
 
 // Adds, replaces or removes one game. Retrying is safe: the game's ID finds its existing row,
 // so a connection that drops mid-upload can never create a duplicate.
-function saveGame_(control, game) {
-  validateGame_(game);
+function saveGame_(control, game, owner) {
+  validateGame_(game, owner);
   // Every player must already be in the Players tab (or be GUEST). Checked before any file or tab
   // is created, so a refused game leaves nothing behind. Names are written as the tab spells them.
   const players = game.deleted ? [] : readPlayers_(control);
@@ -169,15 +183,16 @@ function today_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
 
-function validateGame_(game) {
+function validateGame_(game, owner) {
   if (!game.id) throw new Error('Game has no ID.');
   if (!ISO_DATE.test(game.date || '') || isNaN(new Date(game.date + 'T00:00:00Z'))) {
     throw new Error('Invalid date.');
   }
   // Only today's games can be added, changed or deleted from the app; other days are changed in
   // the sheet. "Today" is Google's clock in the script's time zone, so a phone's clock can't move it.
+  // The owner may also change past days, but never future ones.
   const today = today_();
-  if (game.date !== today) {
+  if (owner ? game.date > today : game.date !== today) {
     throw new Error('Only today\'s games (' + today + ') can be added, changed or deleted in the app. Change other days in the sheet.');
   }
   if (game.deleted) return;
@@ -229,19 +244,34 @@ function readDay_(date) {
     .filter((g) => g.winner1 || g.winner2 || g.loser1 || g.loser2);
 }
 
-// The day's Player of the Day, as worked out by the formulas on its POTD tab:
-// { names: ['A', 'B'], points: 12 }, or null before anyone has played.
+// The day's Player of the Day and standings, as worked out by the formulas on its POTD tab.
 function readAward_(date) {
   const ss = monthFile_(date, false);
-  const tab = ss && ss.getSheetByName(dayTabName_(date) + ' POTD');
+  return readStats_(ss && ss.getSheetByName(dayTabName_(date) + ' POTD'), POTD_LABEL);
+}
+
+// The month so far, from the MONTHLY tab of the date's month file.
+function readMonthAward_(date) {
+  const ss = monthFile_(date, false);
+  return readStats_(ss && ss.getSheetByName(MONTHLY), POTM_LABEL);
+}
+
+// Reads a POTD or MONTHLY tab: { names: ['A', 'B'], points: 12, table: [{ name, played, won,
+// lost, rate, points }] } with everyone who played, best first. Null before anyone has played.
+function readStats_(tab, label) {
   if (!tab || tab.getLastRow() < 3) return null;
   const rows = tab.getRange(3, 1, tab.getLastRow() - 2, 6).getValues();
-  const row = rows.find((r) => String(r[0]).trim() === POTD_LABEL);
-  if (!row) return null;
-  const names = String(row[1]).split(',').map((n) => n.trim()).filter(Boolean);
-  const points = Number(row[5]);
-  if (!names.length || row[5] === '' || !isFinite(points)) return null;
-  return { names: names, points: points };
+  const at = rows.findIndex((r) => String(r[0]).trim() === label);
+  const num = (v) => (v === '' || v === null || !isFinite(Number(v)) ? null : Number(v));
+  const table = (at < 0 ? rows : rows.slice(0, at))
+    .map((r) => ({ name: String(r[0]).trim(), played: num(r[1]), won: num(r[2]), lost: num(r[3]), rate: num(r[4]), points: num(r[5]) }))
+    .filter((p) => p.name && p.played > 0)
+    .sort((a, b) => (b.points - a.points) || ((b.rate || 0) - (a.rate || 0)) || a.name.localeCompare(b.name));
+  if (!table.length) return null;
+  const row = at < 0 ? null : rows[at];
+  const names = row ? String(row[1]).split(',').map((n) => n.trim()).filter(Boolean) : [];
+  const points = row ? num(row[5]) : null;
+  return { names: points === null ? [] : names, points: points, table: table };
 }
 
 /* ---------- Monthly files and day tabs ---------- */
@@ -390,7 +420,7 @@ function refreshDay_(control, date) {
   const days = ss.getSheets().filter((s) => DAY_TAB.test(s.getName()));
   const monthly = ss.getSheetByName(MONTHLY) || ss.insertSheet(MONTHLY, 0);
   const title = "POTM\n\n" + MONTHS[Number(date.slice(5, 7)) - 1] + "' " + date.slice(0, 4);
-  writeStats_(monthly, title, statsPlayers_(control, days), days.map((s) => s.getName()), 'PLAYER OF THE MONTH');
+  writeStats_(monthly, title, statsPlayers_(control, days), days.map((s) => s.getName()), POTM_LABEL);
 }
 
 // Every active member, plus anyone who played in these tabs. Guests never appear.

@@ -39,6 +39,10 @@
     s.get(key).onsuccess = (e) => done(e.target.result);
   });
   const setSetting = (key, value) => run('kv', 'readwrite', (s) => { s.put(value, key); });
+  const removeSetting = (key) => run('kv', 'readwrite', (s) => { s.delete(key); });
+  const settingKeys = () => run('kv', 'readonly', (s, done) => {
+    s.getAllKeys().onsuccess = (e) => done(e.target.result);
+  });
 
   const allGames = () => run('games', 'readonly', (s, done) => {
     s.getAll().onsuccess = (e) => done(e.target.result.sort((a, b) => a.createdAt - b.createdAt));
@@ -93,17 +97,25 @@
     }
   }
 
-  async function exchange(url, passcode, batch, dates) {
+  async function exchange(url, passcode, ownerPasscode, batch, dates) {
     const sentRevs = new Map(batch.map((g) => [g.id, g.rev]));
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
-    const reply = await post(url, { passcode, games: batch.map(toPayload), dates });
+    const body = { passcode, games: batch.map(toPayload), dates };
+    if (ownerPasscode) body.ownerPasscode = ownerPasscode;
+    const reply = await post(url, body);
     if (!reply.ok) {
       const err = new Error(reply.error || 'The script returned an error.');
       err.rejected = true;
       throw err;
     }
     if (reply.players) await setSetting('players', reply.players);
+    // Only if the owner passcode wasn't changed while this request was on its way.
+    const ownerNow = (await getSetting('ownerPasscode')) || '';
+    await setSetting('owner', reply.owner === true && ownerNow !== '' && ownerNow === (ownerPasscode || ''));
+    for (const [month, award] of Object.entries(reply.months || {})) {
+      await setSetting('month:' + month, { award, fetchedAt: Date.now() });
+    }
     // Saved before the games below are marked uploaded, so the list never briefly loses one.
     for (const [date, rows] of Object.entries(reply.days || {})) {
       const award = (reply.awards && reply.awards[date]) || null; // Older scripts send none.
@@ -125,6 +137,7 @@
   async function uploadAll(dates) {
     const url = await getSetting('url');
     const passcode = await getSetting('passcode');
+    const ownerPasscode = await getSetting('ownerPasscode');
     if (!url) return { state: 'unconfigured' };
 
     let lastReply = null;
@@ -132,7 +145,7 @@
       for (;;) {
         const queue = (await allGames()).filter((g) => needsUpload(g) && !hasFailed(g));
         if (!queue.length && lastReply) break;
-        lastReply = await exchange(url, passcode, queue.slice(0, BATCH_SIZE), dates);
+        lastReply = await exchange(url, passcode, ownerPasscode, queue.slice(0, BATCH_SIZE), dates);
       }
     } catch (err) {
       const state = err.rejected ? 'rejected' : 'network';
@@ -153,7 +166,7 @@
   }
 
   root.CourtSheet = {
-    getSetting, setSetting, allGames, putGame, removeGame, updateGame,
+    getSetting, setSetting, removeSetting, settingKeys, allGames, putGame, removeGame, updateGame,
     needsUpload, hasFailed, upload,
   };
 })(self);

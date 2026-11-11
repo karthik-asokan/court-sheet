@@ -30,6 +30,9 @@
     lastFetch: 0,
     configured: false,
     problem: null,
+    month: null, // The sheet's MONTHLY result for the shown date's month.
+    owner: false, // The owner passcode was accepted: past days can be changed too.
+    justLanded: null, // Games that just reached the sheet, briefly highlighted.
   };
 
   function todayIso() {
@@ -84,11 +87,16 @@
   /* ---------- Rendering ---------- */
 
   // Only today's games can be changed in the app. Other days are view-only; change them in the sheet.
-  const viewOnly = () => state.date !== todayIso();
+  // With the owner passcode accepted, past days can be changed too. Future days never can.
+  const viewOnly = () => state.date !== todayIso() && !(state.owner && state.date < todayIso());
 
   function renderForm() {
     $('form').hidden = viewOnly();
-    $('past-note').hidden = !viewOnly();
+    $('past-note').hidden = state.date === todayIso();
+    $('past-note').classList.toggle('owner', !viewOnly());
+    $('past-note').textContent = viewOnly()
+      ? 'Past days are view-only. To change this day, edit the sheet.'
+      : 'Owner mode: you’re changing a past day.';
     document.querySelectorAll('.slot').forEach((btn) => {
       const name = state.names[btn.dataset.slot];
       btn.textContent = name || SLOT_LABEL[btn.dataset.slot];
@@ -147,6 +155,7 @@
       names.append(el('span', 'w', `${game.winner1} & ${game.winner2}`), el('span', 'l', `${game.loser1} & ${game.loser2}`));
       if (game.otherPhone) names.append(el('span', 'from', game.id ? 'Entered on another phone' : 'Typed into the Sheet'));
       btn.append(el('span', 'game-num', number), names, el('span', 'game-score', score), stateIcon(game));
+      if (state.justLanded && state.justLanded.has(game.id)) btn.classList.add('landed');
       if (store.hasFailed(game)) btn.append(el('span', 'game-error', game.error));
       btn.addEventListener('click', () => startEdit(game.id));
       item.append(btn);
@@ -154,21 +163,100 @@
     });
   }
 
-  // The sheet's Player of the Day for the shown date, from the POTD tab's own calculation.
-  function renderAward() {
+  /* ---------- Player of the Day, Player of the Month and standings ---------- */
+
+  const pts = (n) => `${String(n).replace('-', '−')} ${Math.abs(n) === 1 ? 'pt' : 'pts'}`;
+  const monthName = (iso) => {
+    const [y, m] = iso.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long' });
+  };
+  // "A", "A & B", "A, B & C".
+  const joinNames = (names) => (names.length < 3 ? names.join(' & ') : `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`);
+  const hasWinner = (award) => Boolean(award && award.names && award.names.length);
+
+  // Both cards come from the sheet's own POTD and MONTHLY calculations.
+  function renderAwards() {
     const award = state.day && state.day.award;
     const card = $('potd');
-    card.hidden = !award || !award.names || !award.names.length;
-    if (card.hidden) return;
-    const pts = (n) => `${String(n).replace('-', '−')} ${Math.abs(n) === 1 ? 'pt' : 'pts'}`;
-    $('potd-label').textContent = award.names.length > 1 ? 'Players of the day' : 'Player of the day';
-    const list = $('potd-list');
-    list.replaceChildren(...award.names.map((name) => {
-      const item = el('li', 'potd-row');
-      item.append(el('span', 'potd-name', name), el('span', 'potd-points', pts(award.points)));
-      return item;
+    card.hidden = !hasWinner(award);
+    if (!card.hidden) {
+      $('potd-label').textContent = award.names.length > 1 ? 'Players of the day' : 'Player of the day';
+      $('potd-list').replaceChildren(...award.names.map((name) => {
+        const row = el('span', 'potd-row');
+        row.append(el('span', 'potd-name', name), el('span', 'potd-points', pts(award.points)));
+        return row;
+      }));
+      $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
+      $('potd-more').textContent = `Tap for ${state.date === todayIso() ? "today's" : "the day's"} standings`;
+    }
+
+    const month = state.month && state.month.award;
+    $('potm').hidden = !hasWinner(month);
+    if (!$('potm').hidden) {
+      $('potm-label').textContent = `${month.names.length > 1 ? 'Players' : 'Player'} of the month · ${monthName(state.date)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}`;
+      $('potm-names').textContent = joinNames(month.names);
+      $('potm-points').textContent = pts(month.points);
+    }
+  }
+
+  let standingsKind = 'day';
+  function standingsData() {
+    const award = standingsKind === 'day' ? state.day && state.day.award : state.month && state.month.award;
+    const title = standingsKind === 'day' ? `Standings · ${formatDate(state.date)}` : `Standings · ${monthName(state.date)} ${state.date.slice(0, 4)}`;
+    return { award, title };
+  }
+
+  function openStandings(kind) {
+    standingsKind = kind;
+    const { award, title } = standingsData();
+    if (!award || !award.table) {
+      toast('Standings appear once the sheet has been updated.');
+      return;
+    }
+    $('standings-title').textContent = title;
+    const winners = new Set(award.names);
+    $('standings-sub').textContent = `${award.names.length > 1 ? 'Joint winners' : 'Winner'}: ${joinNames(award.names)}, ${pts(award.points)}. Ties go to the higher win rate.`;
+    $('standings-body').replaceChildren(...award.table.map((p, i) => {
+      const row = el('tr');
+      if (winners.has(p.name)) row.className = 'top';
+      row.append(
+        el('td', 'rank', String(i + 1)),
+        el('td', 'name', p.name),
+        el('td', '', String(p.played)),
+        el('td', '', String(p.won)),
+        el('td', '', p.rate === null ? '–' : `${Math.round(p.rate * 100)}%`),
+        el('td', 'points', String(p.points).replace('-', '−')),
+      );
+      return row;
     }));
-    $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
+    if (!$('standings').open) $('standings').showModal();
+  }
+
+  // Plain text that reads well in WhatsApp.
+  function standingsText() {
+    const { award } = standingsData();
+    const heading = standingsKind === 'day'
+      ? `🏸 Mavericks · ${formatDate(state.date)}\n🏆 ${award.names.length > 1 ? 'Players' : 'Player'} of the Day: ${joinNames(award.names)} (${pts(award.points)})`
+      : `🏸 Mavericks · ${monthName(state.date)} ${state.date.slice(0, 4)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}\n🏆 ${award.names.length > 1 ? 'Players' : 'Player'} of the Month: ${joinNames(award.names)} (${pts(award.points)})`;
+    const lines = award.table.map((p, i) => `${i + 1}. ${p.name}: ${pts(p.points)}, won ${p.won} of ${p.played}`);
+    return `${heading}\n\n${lines.join('\n')}`;
+  }
+
+  async function shareText(text, done) {
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // Closed the share sheet.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(done);
+    } catch (err) {
+      toast('Sharing isn’t available on this browser.');
+    }
   }
 
   function renderStatus() {
@@ -203,12 +291,32 @@
     state.players = (await store.getSetting('players')) || [];
     state.configured = Boolean(await store.getSetting('url'));
     state.problem = await store.getSetting('lastProblem');
+    state.month = (await store.getSetting('month:' + state.date.slice(0, 7))) || null;
+    state.owner = (await store.getSetting('owner')) === true;
     if (viewOnly() && state.editingId) resetForm(); // Midnight passed mid-edit.
+    noticeUploads();
     renderForm();
     renderGames();
-    renderAward();
+    renderAwards();
     renderStatus();
     if ($('picker').open) renderPicker();
+    if ($('standings').open) openStandings(standingsKind);
+  }
+
+  // A short buzz and a tick when games saved on this phone reach the sheet.
+  let pendingBefore = null;
+  function noticeUploads() {
+    const pending = new Set(state.games.filter(store.needsUpload).map((g) => g.id));
+    if (pendingBefore) {
+      const landed = [...pendingBefore].filter((id) => !pending.has(id) && state.games.some((g) => g.id === id && !g.deleted));
+      if (landed.length) {
+        state.justLanded = new Set(landed);
+        setTimeout(() => { state.justLanded = null; renderGames(); }, 1800);
+        if (navigator.vibrate) navigator.vibrate(40);
+        toast(landed.length === 1 ? 'In the sheet ✓' : `${landed.length} games in the sheet ✓`);
+      }
+    }
+    pendingBefore = pending;
   }
 
   let toastTimer;
@@ -533,11 +641,53 @@
 
   /* ---------- Settings ---------- */
 
-  async function openSettings() {
-    $('set-url').value = (await store.getSetting('url')) || '';
+  async function openSettings(message) {
+    const url = (await store.getSetting('url')) || '';
+    if (!$('set-url').value || !$('settings').open) $('set-url').value = url;
     $('set-pass').value = (await store.getSetting('passcode')) || '';
+    $('set-owner').value = (await store.getSetting('ownerPasscode')) || '';
+    $('share-setup').disabled = !url;
     $('settings-msg').hidden = true;
+    if (typeof message === 'string') settingsMessage(message);
+    showVersion();
     if (!$('settings').open) $('settings').showModal();
+  }
+
+  // The running version, as the service worker reports it.
+  function showVersion() {
+    const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!worker) {
+      $('app-version').textContent = '';
+      return;
+    }
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (event) => { $('app-version').textContent = `App version ${event.data}`; };
+    worker.postMessage({ type: 'version' }, [channel.port2]);
+  }
+
+  /* ---------- Setup link ---------- */
+
+  // A link to this app with the web app URL after #setup=. Opening it fills in Settings.
+  const setupLink = (url) => `${location.origin}${location.pathname}#setup=${encodeURIComponent(url)}`;
+  function urlFromSetup(text) {
+    const match = /#setup=([^\s&]+)/.exec(text || '');
+    if (!match) return text;
+    try {
+      return decodeURIComponent(match[1]);
+    } catch (err) {
+      return text;
+    }
+  }
+
+  async function readSetupLink() {
+    if (!location.hash.startsWith('#setup=')) return false;
+    const url = urlFromSetup(location.hash);
+    history.replaceState(null, '', location.pathname + location.search);
+    if (!/^https:\/\/script\.google\.com\//.test(url)) return false;
+    $('set-url').value = url;
+    await openSettings('Web app URL filled in from the setup link. Enter the passcode, then tap Save and test connection.');
+    $('set-url').value = url;
+    return true;
   }
 
   function settingsMessage(text, bad) {
@@ -549,19 +699,30 @@
 
   async function saveSettings(event) {
     event.preventDefault();
-    const url = $('set-url').value.trim();
+    // A pasted setup link works too.
+    const url = urlFromSetup($('set-url').value.trim()).trim();
+    $('set-url').value = url;
     const passcode = $('set-pass').value;
+    const ownerPasscode = $('set-owner').value;
     if (!url) {
       settingsMessage('Paste the web app URL first.', true);
       return;
     }
     await store.setSetting('url', url);
     await store.setSetting('passcode', passcode);
+    await store.setSetting('ownerPasscode', ownerPasscode);
+    if (!ownerPasscode) await store.setSetting('owner', false);
+    $('share-setup').disabled = false;
     settingsMessage('Testing…');
     const result = await uploadSoon();
+    await refresh();
     if (result && result.state === 'ok') {
       const count = (await store.getSetting('players') || []).length;
-      settingsMessage(`Connected. ${count} players loaded.`);
+      let owner = '';
+      if (ownerPasscode) {
+        owner = state.owner ? ' Owner mode is on: past days can be changed on this phone.' : ' The owner passcode wasn’t accepted, so past days stay view-only.';
+      }
+      settingsMessage(`Connected. ${count} players loaded.${owner}`, Boolean(ownerPasscode && !state.owner));
     } else if (result && result.state === 'rejected') {
       settingsMessage(result.message, true);
     } else if (result && result.state === 'busy') {
@@ -618,8 +779,34 @@
   $('open-settings').addEventListener('click', openSettings);
   $('settings-close').addEventListener('click', () => $('settings').close());
   $('settings-form').addEventListener('submit', saveSettings);
+  $('share-setup').addEventListener('click', async () => {
+    const url = await store.getSetting('url');
+    if (!url) return;
+    const link = setupLink(url);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Mavericks games', text: 'Set up the Mavericks games app (ask for the passcode):', url: link });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Setup link copied');
+    } catch (err) {
+      toast('Sharing isn’t available on this browser.');
+    }
+  });
 
-  [$('picker'), $('settings')].forEach((dialog) => {
+  window.addEventListener('hashchange', readSetupLink); // A setup link opened while the app is showing.
+
+  $('potd').addEventListener('click', () => openStandings('day'));
+  $('potm').addEventListener('click', () => openStandings('month'));
+  $('standings-close').addEventListener('click', () => $('standings').close());
+  $('standings-share').addEventListener('click', () => shareText(standingsText(), 'Standings copied, ready to paste'));
+
+  [$('picker'), $('settings'), $('standings')].forEach((dialog) => {
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) dialog.close(); // Tap on the backdrop.
     });
@@ -647,15 +834,49 @@
     if (waiting || Date.now() - state.lastFetch > REFRESH_MS) uploadSoon();
   }, RETRY_MS);
 
+  /* ---------- Updates ---------- */
+
+  // A new version installs itself in the background. When it takes over, offer to reload.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-    navigator.serviceWorker.addEventListener('message', refresh);
+    const hadWorker = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      setInterval(check, 30 * 60 * 1000);
+    });
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data === 'games-changed') refresh();
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadWorker) $('update-banner').hidden = false; // The first install needs no reload.
+    });
   }
+  $('update-now').addEventListener('click', () => location.reload());
   // Ask the browser not to evict queued games when storage runs low.
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 
+  /* ---------- Tidying ---------- */
+
+  // Keeps a rolling 30 days on the phone. Older games are dropped once they're safely in the sheet;
+  // picking an older date fetches it from the sheet again.
+  const KEEP_DAYS = 30;
+  async function tidy() {
+    const cutoff = new Date(Date.now() - KEEP_DAYS * 864e5);
+    const pad = (n) => String(n).padStart(2, '0');
+    const oldest = `${cutoff.getFullYear()}-${pad(cutoff.getMonth() + 1)}-${pad(cutoff.getDate())}`;
+    for (const game of await store.allGames()) {
+      if (game.date < oldest && !store.needsUpload(game)) await store.removeGame(game.id);
+    }
+    for (const key of await store.settingKeys()) {
+      const day = /^day:(\d{4}-\d{2}-\d{2})$/.exec(key);
+      const month = /^month:(\d{4}-\d{2})$/.exec(key);
+      if ((day && day[1] < oldest) || (month && month[1] < oldest.slice(0, 7))) await store.removeSetting(key);
+    }
+  }
+
   resetForm();
-  refresh().then(() => {
+  tidy().catch(() => {}).then(refresh).then(async () => {
+    if (await readSetupLink()) return;
     if (!state.configured) openSettings();
     else uploadSoon();
   });

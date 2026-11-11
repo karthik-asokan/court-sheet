@@ -1,5 +1,5 @@
 // Change VERSION whenever any app file changes, so phones pick up the new copy.
-const VERSION = 'v13';
+const VERSION = 'v14';
 const CACHE = 'court-sheet-' + VERSION;
 const FILES = [
   './',
@@ -45,6 +45,11 @@ self.addEventListener('fetch', (event) => {
       throw err;
     }
   })());
+});
+
+// The app asks which version is running, to show in Settings.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'version' && event.ports[0]) event.ports[0].postMessage(VERSION);
 });
 
 // Background Sync: upload once the connection returns, even with the app closed.

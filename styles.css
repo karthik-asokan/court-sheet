@@ -234,6 +234,29 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .btn-primary:active { opacity: .85; }
 .btn-primary[disabled] { opacity: .5; }
 .btn-quiet { flex: 0 0 34%; border: 1px solid var(--line); background: transparent; }
+.btn-quiet[disabled] { opacity: .5; }
+.btn-wide { display: block; flex: none; width: 100%; }
+
+/* Update banner */
+.update-banner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 14px;
+  background: var(--court);
+  color: var(--on-court);
+  font-size: 14px;
+  font-weight: 600;
+}
+.btn-small { flex: none; padding: 8px 14px; border: 0; border-radius: 10px; background: var(--on-court); color: var(--court-strong); font-weight: 750; }
+
+/* Settings extras */
+.settings-extra { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.optional { color: var(--muted); font-weight: 450; }
+.app-version { margin: 10px 2px 0; color: var(--muted); font-size: 12px; text-align: center; }
 .link {
   min-height: 44px;
   padding: 0 4px;
@@ -245,6 +268,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .link.danger { color: var(--danger); }
 
 /* Games list */
+.past-note.owner { border-style: solid; border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-text); }
 .past-note {
   margin: 4px 0 0;
   padding: 12px 14px;
@@ -275,13 +299,50 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   background: var(--gold);
   color: #FFFFFF;
 }
-.potd-body { flex: 1; min-width: 0; }
-.potd-label { margin: 0 0 2px; color: var(--gold-text); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.potd-list { margin: 0; padding: 0; list-style: none; }
+.potd { width: 100%; color: inherit; text-align: left; }
+.potd:active, .potm:active { transform: scale(.99); }
+.potd-body { display: block; flex: 1; min-width: 0; }
+.potd-label { display: block; margin: 0 0 2px; color: var(--gold-text); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.potd-list { display: block; }
 .potd-row { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
 .potd-name { overflow: hidden; font-size: 19px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .potd-points { flex: none; color: var(--gold-text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.potd-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.potd-note { display: block; margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.potd-more { display: block; margin-top: 6px; color: var(--gold-text); font-size: 13px; font-weight: 600; }
+.potd-more::after { content: " ›"; }
+
+/* Player of the month */
+.potm {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+}
+.potm-icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--gold-soft); color: var(--gold-text); }
+.potm-body { display: block; flex: 1; min-width: 0; }
+.potm-label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
+.potm-names { display: block; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.potm-points { flex: none; color: var(--gold-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.potm-points::after { content: " ›"; color: var(--muted); }
+
+/* Standings */
+.table-wrap { margin: 4px -4px 14px; overflow-x: auto; }
+.standings { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+.standings th { padding: 6px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 650; text-align: right; }
+.standings td { padding: 9px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+.standings .name { overflow: hidden; max-width: 9em; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.standings .rank { width: 1.6em; color: var(--muted); text-align: left; }
+.standings th:first-child { text-align: left; }
+.standings .points { font-weight: 750; }
+.standings tr.top td { background: var(--gold-soft); }
+.standings tr.top .name, .standings tr.top .points { color: var(--gold-text); font-weight: 750; }
 
 .games { margin-top: 26px; }
 .games h2 { margin: 0 2px 8px; font-size: 15px; font-weight: 700; }
@@ -302,6 +363,8 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   text-align: left;
 }
 .game.editing { background: var(--surface); }
+.game.landed { animation: landed 1.8s ease-out; }
+@keyframes landed { from { background: rgba(31, 111, 92, .18); } to { background: transparent; } }
 .game-num { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .game-names { min-width: 0; font-size: 14px; }
 .game-names span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
