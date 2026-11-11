@@ -62,7 +62,7 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 
 ## Using it
 
-- **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Type the losers' score and tap **Save game**.
+- **Add a game:** tap a player slot, then tap four names. Winners turn green and losers red, tagged W1, W2, L1 and L2. The four slots also appear at the top of the picker; tap one to clear it. Tap a name again to remove them, or **Clear all** to start over, then tap **Done**. Type the losers' score and tap **Save game**. Picked the teams the wrong way round? Tap the round ⇅ button between the two cards to swap winners and losers.
 - **Player of the Day:** a gold trophy card between **Save game** and the games list shows the day's Player of the Day and their points, read from that day's POTD tab. Joint winners are each listed. It updates whenever the phone connects; while this phone has games waiting to upload, it says so.
 - **Standings:** tap the trophy card for the day's full table (played, won, win rate and points for everyone who played, winners highlighted). **Share** sends it as text through the phone's share sheet, ready for WhatsApp; where sharing isn't available it's copied instead.
 - **Player of the Month:** a smaller card under it shows the MONTHLY tab's leader so far. Tap it for the month's standings.
@@ -80,7 +80,7 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 
 Everyone who has the web app URL and passcode can enter games. Each phone's list shows the whole day from the sheet, with games from other phones marked **Entered on another phone**. Another phone's games appear once it has uploaded them and your phone has connected since. An open app checks about once a minute, and tapping the status at the top checks straight away.
 
-If you try to save a game whose players and score match one already in the list, the app asks before saving it again. Rows typed straight into the sheet appear in the list but can only be changed in the sheet.
+If you try to save a game whose players and score match one already in the list, the app asks before saving it again. Rows typed straight into the sheet appear in the list marked **Typed into the sheet**. The script gives each one an ID (in the hidden ID column, starting `sheet-`) the first time a phone reads that day, so they can be edited and deleted from the app like any other game, within the usual today-only rule or in owner mode.
 
 ## How uploads work
 

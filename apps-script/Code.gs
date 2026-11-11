@@ -223,14 +223,17 @@ function findRow_(tab, id) {
   return index < 0 ? 0 : index + 2;
 }
 
-// A day's games in sheet order. Rows typed straight into the sheet have no ID.
+// A day's games in sheet order. Rows typed straight into the sheet get an ID the first time
+// they're read, so the app can change them like any other game.
 function readDay_(date) {
   const ss = monthFile_(date, false);
   const tab = ss && ss.getSheetByName(dayTabName_(date));
   if (!tab || tab.getLastRow() < 2) return [];
   const text = (v) => String(v).trim();
   const score = (v) => (v === '' ? null : Number(v));
-  return tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues()
+  let values = tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues();
+  if (values.some((r) => hasPlayers_(r) && !text(r[ID_COLUMN - 1]))) values = assignIds_(tab) || values;
+  return values
     .map((r) => ({
       id: text(r[11]),
       winner1: text(r[1]),
@@ -272,6 +275,28 @@ function readStats_(tab, label) {
   const names = row ? String(row[1]).split(',').map((n) => n.trim()).filter(Boolean) : [];
   const points = row ? num(row[5]) : null;
   return { names: points === null ? [] : names, points: points, table: table };
+}
+
+const hasPlayers_ = (r) => [r[1], r[2], r[6], r[7]].some((v) => String(v).trim());
+
+// Gives every hand-typed row its own ID (starting "sheet-") in the hidden ID column. Done under
+// the lock and re-read inside it, so two phones reading at once can't give one row two IDs.
+// Returns the updated rows, or null if the sheet was busy (the next read tries again).
+function assignIds_(tab) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return null;
+  try {
+    if (tab.getLastRow() < 2) return [];
+    const values = tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues();
+    values.forEach((r, i) => {
+      if (!hasPlayers_(r) || String(r[ID_COLUMN - 1]).trim()) return;
+      r[ID_COLUMN - 1] = 'sheet-' + Utilities.getUuid();
+      tab.getRange(i + 2, ID_COLUMN).setValue(r[ID_COLUMN - 1]);
+    });
+    return values;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /* ---------- Monthly files and day tabs ---------- */

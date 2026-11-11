@@ -156,6 +156,22 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   color: var(--muted);
 }
 .team-win { background: var(--court); color: var(--on-court); }
+/* Swap button: sits over the gap between the two cards, above the score column. */
+.swap {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: -25px 34px -15px auto;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--court-strong);
+  box-shadow: 0 2px 8px rgba(23, 33, 30, .16);
+}
+.swap:active { transform: rotate(180deg); transition: transform .2s; }
 .team-win h2 { color: var(--on-court); opacity: .85; }
 .team-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .slots { display: grid; gap: 8px; }

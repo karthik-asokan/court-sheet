@@ -153,7 +153,7 @@
       btn.setAttribute('aria-label', `Edit game ${number}: ${game.winner1} and ${game.winner2} beat ${game.loser1} and ${game.loser2}, ${score}`);
       const names = el('span', 'game-names');
       names.append(el('span', 'w', `${game.winner1} & ${game.winner2}`), el('span', 'l', `${game.loser1} & ${game.loser2}`));
-      if (game.otherPhone) names.append(el('span', 'from', game.id ? 'Entered on another phone' : 'Typed into the Sheet'));
+      if (game.otherPhone) names.append(el('span', 'from', !game.id || game.id.startsWith('sheet-') ? 'Typed into the sheet' : 'Entered on another phone'));
       btn.append(el('span', 'game-num', number), names, el('span', 'game-score', score), stateIcon(game));
       if (state.justLanded && state.justLanded.has(game.id)) btn.classList.add('landed');
       if (store.hasFailed(game)) btn.append(el('span', 'game-error', game.error));
@@ -448,6 +448,17 @@
     clearError();
     renderForm();
     renderPicker();
+  }
+
+  // For teams picked the wrong way round: the winners become the losers and back. The losers'
+  // score stays as typed, since it's the score that tells which side won.
+  function swapSides() {
+    const n = state.names;
+    state.names = { winner1: n.loser1, winner2: n.loser2, loser1: n.winner1, loser2: n.winner2 };
+    state.pickerSlot = null;
+    clearError();
+    renderForm();
+    if (Object.values(state.names).some(Boolean)) toast('Winners and losers swapped');
   }
 
   function clearAllPlayers() {
@@ -771,6 +782,7 @@
   });
   $('picker-close').addEventListener('click', () => $('picker').close());
   $('picker-clear').addEventListener('click', clearAllPlayers);
+  $('swap-sides').addEventListener('click', swapSides);
 
   $('status').addEventListener('click', () => {
     if (!state.configured || state.problem) openSettings();
