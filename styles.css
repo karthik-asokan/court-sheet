@@ -148,6 +148,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   font-weight: 650;
 }
 .date-row svg { color: var(--muted); }
+.date-arrow { margin-left: -4px; } /* Sits with the date it opens. */
 .date-row input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .date-row.locked { opacity: .55; cursor: default; }
 .date-row.locked input { pointer-events: none; }
