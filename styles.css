@@ -156,15 +156,16 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   color: var(--muted);
 }
 .team-win { background: var(--court); color: var(--on-court); }
-/* Swap button: sits over the gap between the two cards, above the score column. */
+/* Swap button: sits over the gap between the two cards, centred over the player slots.
+   The slots column is the card width minus padding (24), score column (84) and gap (10). */
 .swap {
   position: relative;
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  margin: -25px 34px -15px auto;
+  width: 36px;
+  height: 36px;
+  margin: -22px 0 -14px calc((100% - 118px) / 2 - 6px);
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
@@ -493,3 +494,6 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   font-weight: 600;
   transform: translateX(-50%);
 }
+
+.games-empty.loading { animation: loading-pulse 1.4s ease-in-out infinite; }
+@keyframes loading-pulse { 50% { opacity: .45; } }

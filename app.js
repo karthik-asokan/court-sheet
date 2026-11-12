@@ -33,6 +33,8 @@
     month: null, // The sheet's MONTHLY result for the shown date's month.
     owner: false, // The owner passcode was accepted: past days can be changed too.
     justLanded: null, // Games that just reached the sheet, briefly highlighted.
+    loadingDate: null, // The day being fetched from the sheet right now.
+    loadFailed: null, // The day whose last fetch failed.
   };
 
   function todayIso() {
@@ -143,6 +145,15 @@
     $('games-title').textContent = games.length === 1 ? '1 game' : `${games.length} games`;
     $('games-title').hidden = !games.length;
     $('games-empty').hidden = games.length > 0;
+    // Until the sheet's copy of this day has arrived, "no games" may not be true yet.
+    let empty = 'No games recorded for this day yet.';
+    if (!state.day && state.configured) {
+      if (state.loadingDate === state.date) empty = 'Loading this day’s games from the sheet…';
+      else if (!navigator.onLine) empty = 'This day isn’t on this phone yet. Connect to the internet to see it.';
+      else if (state.loadFailed === state.date) empty = 'Couldn’t load this day. Tap the status at the top to try again.';
+    }
+    $('games-empty').textContent = empty;
+    $('games-empty').classList.toggle('loading', state.loadingDate === state.date && !state.day);
 
     games.map((g, i) => [g, i + 1]).reverse().forEach(([game, number]) => {
       const item = el('li');
@@ -634,9 +645,25 @@
       return null;
     }
     state.uploading = true;
-    renderStatus();
-    const result = await store.upload({ dates: [state.date] });
+    let result;
+    let date;
+    // Another upload (an earlier tap, the timer, or the service worker) may be running. Rather than
+    // skip this one, wait for it, and keep going until the day now on screen has been fetched.
+    for (let tries = 0; tries < 60; tries++) {
+      date = state.date;
+      state.loadingDate = date;
+      renderStatus();
+      renderGames();
+      result = await store.upload({ dates: [date] });
+      if (result.state === 'busy') {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+      if (result.state !== 'ok' || state.date === date) break;
+    }
     state.uploading = false;
+    state.loadingDate = null;
+    state.loadFailed = result.state === 'ok' ? null : date;
     if (result.state === 'ok') state.lastFetch = Date.now();
     await refresh();
     if (result.state === 'network') registerBackgroundSync();
