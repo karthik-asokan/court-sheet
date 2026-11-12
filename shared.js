@@ -97,12 +97,12 @@
     }
   }
 
-  async function exchange(url, passcode, ownerPasscode, batch, dates) {
+  async function exchange(url, passcode, adminPasscode, batch, dates) {
     const sentRevs = new Map(batch.map((g) => [g.id, g.rev]));
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
     const body = { passcode, games: batch.map(toPayload), dates };
-    if (ownerPasscode) body.ownerPasscode = ownerPasscode;
+    if (adminPasscode) body.adminPasscode = adminPasscode;
     const reply = await post(url, body);
     if (!reply.ok) {
       const err = new Error(reply.error || 'The script returned an error.');
@@ -110,9 +110,9 @@
       throw err;
     }
     if (reply.players) await setSetting('players', reply.players);
-    // Only if the owner passcode wasn't changed while this request was on its way.
-    const ownerNow = (await getSetting('ownerPasscode')) || '';
-    await setSetting('owner', reply.owner === true && ownerNow !== '' && ownerNow === (ownerPasscode || ''));
+    // Only if the admin passcode wasn't changed while this request was on its way.
+    const adminNow = (await getSetting('adminPasscode')) || '';
+    await setSetting('admin', reply.admin === true && adminNow !== '' && adminNow === (adminPasscode || ''));
     for (const [month, award] of Object.entries(reply.months || {})) {
       await setSetting('month:' + month, { award, fetchedAt: Date.now() });
     }
@@ -137,7 +137,7 @@
   async function uploadAll(dates) {
     const url = await getSetting('url');
     const passcode = await getSetting('passcode');
-    const ownerPasscode = await getSetting('ownerPasscode');
+    const adminPasscode = await getSetting('adminPasscode');
     if (!url) return { state: 'unconfigured' };
 
     let lastReply = null;
@@ -145,7 +145,7 @@
       for (;;) {
         const queue = (await allGames()).filter((g) => needsUpload(g) && !hasFailed(g));
         if (!queue.length && lastReply) break;
-        lastReply = await exchange(url, passcode, ownerPasscode, queue.slice(0, BATCH_SIZE), dates);
+        lastReply = await exchange(url, passcode, adminPasscode, queue.slice(0, BATCH_SIZE), dates);
       }
     } catch (err) {
       const state = err.rejected ? 'rejected' : 'network';

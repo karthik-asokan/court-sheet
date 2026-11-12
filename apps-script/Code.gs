@@ -8,10 +8,10 @@
 const PASSCODE = 'change-me';
 // The ID of your "games" folder: the code after /folders/ in the folder's web address.
 const FOLDER_ID = 'paste-your-folder-id';
-// Optional: a second passcode that only you know. Entered as "Owner passcode" in a phone's
+// Optional: a second passcode that only you know. Entered as "Admin passcode" in a phone's
 // Settings, it lets that phone add, change and delete games on past days too. Leave it as ''
-// to turn owner mode off. It must be different from PASSCODE.
-const OWNER_PASSCODE = '';
+// to turn admin mode off. It must be different from PASSCODE.
+const ADMIN_PASSCODE = '';
 
 const TEMPLATE_NAME = 'Mavericks Template';
 const FILE_PREFIX = 'Mavericks_Points System_Scores_';
@@ -67,8 +67,8 @@ function doPost(e) {
     return reply_({ ok: false, error: 'Paste your games folder ID into FOLDER_ID, then deploy a new version.' });
   }
 
-  // Owner mode: a second passcode that also allows changes to past days.
-  const owner = OWNER_PASSCODE !== '' && OWNER_PASSCODE !== PASSCODE && request.ownerPasscode === OWNER_PASSCODE;
+  // Admin mode: a second passcode that also allows changes to past days.
+  const admin = ADMIN_PASSCODE !== '' && ADMIN_PASSCODE !== PASSCODE && request.adminPasscode === ADMIN_PASSCODE;
 
   const control = SpreadsheetApp.getActiveSpreadsheet();
   const games = request.games || [];
@@ -86,7 +86,7 @@ function doPost(e) {
       const touched = new Set();
       results = games.map((game) => {
         try {
-          saveGame_(control, game, owner);
+          saveGame_(control, game, admin);
           touched.add(game.date);
           return { id: game.id, ok: true };
         } catch (err) {
@@ -125,8 +125,8 @@ function doPost(e) {
     days: days,
     awards: awards,
     months: months,
-    owner: owner,
-    ownerTried: Boolean(request.ownerPasscode),
+    admin: admin,
+    adminTried: Boolean(request.adminPasscode),
     players: activePlayers_(control),
     sheetUrl: shown ? shown.getUrl() : folder_().getUrl(),
     warnings: warnings,
@@ -141,8 +141,8 @@ function reply_(body) {
 
 // Adds, replaces or removes one game. Retrying is safe: the game's ID finds its existing row,
 // so a connection that drops mid-upload can never create a duplicate.
-function saveGame_(control, game, owner) {
-  validateGame_(game, owner);
+function saveGame_(control, game, admin) {
+  validateGame_(game, admin);
   // Every player must already be in the Players tab (or be GUEST). Checked before any file or tab
   // is created, so a refused game leaves nothing behind. Names are written as the tab spells them.
   const players = game.deleted ? [] : readPlayers_(control);
@@ -183,16 +183,16 @@ function today_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
 
-function validateGame_(game, owner) {
+function validateGame_(game, admin) {
   if (!game.id) throw new Error('Game has no ID.');
   if (!ISO_DATE.test(game.date || '') || isNaN(new Date(game.date + 'T00:00:00Z'))) {
     throw new Error('Invalid date.');
   }
   // Only today's games can be added, changed or deleted from the app; other days are changed in
   // the sheet. "Today" is Google's clock in the script's time zone, so a phone's clock can't move it.
-  // The owner may also change past days, but never future ones.
+  // The admin may also change past days, but never future ones.
   const today = today_();
-  if (owner ? game.date > today : game.date !== today) {
+  if (admin ? game.date > today : game.date !== today) {
     throw new Error('Only today\'s games (' + today + ') can be added, changed or deleted in the app. Change other days in the sheet.');
   }
   if (game.deleted) return;

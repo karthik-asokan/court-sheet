@@ -124,8 +124,8 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   cursor: pointer;
 }
 .date-label { font-size: 16px; font-weight: 600; }
-/* Owner mode pill: shaped like the status pill at the top, in light blue. */
-.owner-pill {
+/* Admin mode pill: shaped like the status pill at the top, in light blue. */
+.admin-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -138,7 +138,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   font-weight: 600;
   white-space: nowrap;
 }
-.owner-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
+.admin-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
 .date-tag {
   padding: 1px 8px;
   border-radius: 999px;

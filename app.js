@@ -31,7 +31,7 @@
     configured: false,
     problem: null,
     month: null, // The sheet's MONTHLY result for the shown date's month.
-    owner: false, // The owner passcode was accepted: past days can be changed too.
+    admin: false, // The admin passcode was accepted: past days can be changed too.
     justLanded: null, // Games that just reached the sheet, briefly highlighted.
     loadingDate: null, // The day being fetched from the sheet right now.
     loadFailed: null, // The day whose last fetch failed.
@@ -89,14 +89,14 @@
   /* ---------- Rendering ---------- */
 
   // Only today's games can be changed in the app. Other days are view-only; change them in the sheet.
-  // With the owner passcode accepted, past days can be changed too. Future days never can.
-  const viewOnly = () => state.date !== todayIso() && !(state.owner && state.date < todayIso());
+  // With the admin passcode accepted, past days can be changed too. Future days never can.
+  const viewOnly = () => state.date !== todayIso() && !(state.admin && state.date < todayIso());
 
   function renderForm() {
     $('form').hidden = viewOnly();
-    // Past days: a note when they're view-only, or a small pill by the date in owner mode.
+    // Past days: a note when they're view-only, or a small pill by the date in admin mode.
     $('past-note').hidden = !viewOnly();
-    $('owner-pill').hidden = state.date === todayIso() || viewOnly();
+    $('admin-pill').hidden = state.date === todayIso() || viewOnly();
     document.querySelectorAll('.slot').forEach((btn) => {
       const name = state.names[btn.dataset.slot];
       btn.textContent = name || SLOT_LABEL[btn.dataset.slot];
@@ -301,7 +301,7 @@
     state.configured = Boolean(await store.getSetting('url'));
     state.problem = await store.getSetting('lastProblem');
     state.month = (await store.getSetting('month:' + state.date.slice(0, 7))) || null;
-    state.owner = (await store.getSetting('owner')) === true;
+    state.admin = (await store.getSetting('admin')) === true;
     if (viewOnly() && state.editingId) resetForm(); // Midnight passed mid-edit.
     noticeUploads();
     renderForm();
@@ -681,7 +681,7 @@
     const url = (await store.getSetting('url')) || '';
     if (!$('set-url').value || !$('settings').open) $('set-url').value = url;
     $('set-pass').value = (await store.getSetting('passcode')) || '';
-    $('set-owner').value = (await store.getSetting('ownerPasscode')) || '';
+    $('set-admin').value = (await store.getSetting('adminPasscode')) || '';
     $('share-setup').disabled = !url;
     $('settings-msg').hidden = true;
     if (typeof message === 'string') settingsMessage(message);
@@ -739,26 +739,26 @@
     const url = urlFromSetup($('set-url').value.trim()).trim();
     $('set-url').value = url;
     const passcode = $('set-pass').value;
-    const ownerPasscode = $('set-owner').value;
+    const adminPasscode = $('set-admin').value;
     if (!url) {
       settingsMessage('Paste the web app URL first.', true);
       return;
     }
     await store.setSetting('url', url);
     await store.setSetting('passcode', passcode);
-    await store.setSetting('ownerPasscode', ownerPasscode);
-    if (!ownerPasscode) await store.setSetting('owner', false);
+    await store.setSetting('adminPasscode', adminPasscode);
+    if (!adminPasscode) await store.setSetting('admin', false);
     $('share-setup').disabled = false;
     settingsMessage('Testing…');
     const result = await uploadSoon();
     await refresh();
     if (result && result.state === 'ok') {
       const count = (await store.getSetting('players') || []).length;
-      let owner = '';
-      if (ownerPasscode) {
-        owner = state.owner ? ' Owner mode is on: past days can be changed on this phone.' : ' The owner passcode wasn’t accepted, so past days stay view-only.';
+      let admin = '';
+      if (adminPasscode) {
+        admin = state.admin ? ' Admin mode is on: past days can be changed on this phone.' : ' The admin passcode wasn’t accepted, so past days stay view-only.';
       }
-      settingsMessage(`Connected. ${count} players loaded.${owner}`, Boolean(ownerPasscode && !state.owner));
+      settingsMessage(`Connected. ${count} players loaded.${admin}`, Boolean(adminPasscode && !state.admin));
     } else if (result && result.state === 'rejected') {
       settingsMessage(result.message, true);
     } else if (result && result.state === 'busy') {
@@ -898,6 +898,14 @@
   // picking an older date fetches it from the sheet again.
   const KEEP_DAYS = 30;
   async function tidy() {
+    // Admin mode used to be called owner mode: carry a saved passcode across to the new name.
+    const oldPasscode = await store.getSetting('ownerPasscode');
+    if (oldPasscode !== undefined) {
+      if (!(await store.getSetting('adminPasscode'))) await store.setSetting('adminPasscode', oldPasscode);
+      await store.removeSetting('ownerPasscode');
+      await store.removeSetting('owner');
+    }
+
     const cutoff = new Date(Date.now() - KEEP_DAYS * 864e5);
     const pad = (n) => String(n).padStart(2, '0');
     const oldest = `${cutoff.getFullYear()}-${pad(cutoff.getMonth() + 1)}-${pad(cutoff.getDate())}`;
