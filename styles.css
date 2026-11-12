@@ -17,6 +17,10 @@
   --gold-soft: #FBF3DF;
   --gold-line: #EBD7A6;
   --gold-text: #8A5F00;
+  --blue: #2F80C9;
+  --blue-soft: #EAF3FC;
+  --blue-line: #C3DCF3;
+  --blue-text: #1D5E99;
   --radius: 18px;
   --shadow: 0 1px 2px rgba(23, 33, 30, .06), 0 8px 24px rgba(23, 33, 30, .06);
 }
@@ -36,6 +40,10 @@
     --gold-soft: #2A2414;
     --gold-line: #4A3D1C;
     --gold-text: #E8BE5A;
+    --blue: #5AA6EA;
+    --blue-soft: #15283A;
+    --blue-line: #24435F;
+    --blue-text: #8CC2F2;
     --shadow: none;
   }
 }
@@ -116,6 +124,21 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   cursor: pointer;
 }
 .date-label { font-size: 16px; font-weight: 600; }
+/* Owner mode pill: shaped like the status pill at the top, in light blue. */
+.owner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border: 1px solid var(--blue-line);
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.owner-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
 .date-tag {
   padding: 1px 8px;
   border-radius: 999px;
@@ -156,16 +179,15 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   color: var(--muted);
 }
 .team-win { background: var(--court); color: var(--on-court); }
-/* Swap button: sits over the gap between the two cards, centred over the player slots.
-   The slots column is the card width minus padding (24), score column (84) and gap (10). */
+/* Swap button: sits over the gap between the two cards, above the score column. */
 .swap {
   position: relative;
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  margin: -22px 0 -14px calc((100% - 118px) / 2 - 6px);
+  width: 40px;
+  height: 40px;
+  margin: -25px 34px -15px auto;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
@@ -285,7 +307,6 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .link.danger { color: var(--danger); }
 
 /* Games list */
-.past-note.owner { border-style: solid; border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-text); }
 .past-note {
   margin: 4px 0 0;
   padding: 12px 14px;

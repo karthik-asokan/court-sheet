@@ -94,11 +94,9 @@
 
   function renderForm() {
     $('form').hidden = viewOnly();
-    $('past-note').hidden = state.date === todayIso();
-    $('past-note').classList.toggle('owner', !viewOnly());
-    $('past-note').textContent = viewOnly()
-      ? 'Past days are view-only. To change this day, edit the sheet.'
-      : 'Owner mode: you’re changing a past day.';
+    // Past days: a note when they're view-only, or a small pill by the date in owner mode.
+    $('past-note').hidden = !viewOnly();
+    $('owner-pill').hidden = state.date === todayIso() || viewOnly();
     document.querySelectorAll('.slot').forEach((btn) => {
       const name = state.names[btn.dataset.slot];
       btn.textContent = name || SLOT_LABEL[btn.dataset.slot];
