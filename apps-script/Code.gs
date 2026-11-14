@@ -118,6 +118,12 @@ function doPost(e) {
     const month = date.slice(0, 7);
     if (!(month in months)) months[month] = readMonthAward_(date);
   });
+  // Which days have games, for the dots on the app's calendar: the shown months plus any the
+  // calendar asked for (at most a few per request).
+  const playDays = {};
+  dates.map((d) => d.slice(0, 7)).concat((request.calendarMonths || []).slice(0, 3))
+    .filter((m) => /^\d{4}-\d{2}$/.test(String(m)))
+    .forEach((m) => { if (!(m in playDays)) playDays[m] = listPlayDays_(m); });
   const shown = dates.length ? monthFile_(dates[0], false) : null;
   return reply_({
     ok: true,
@@ -125,6 +131,7 @@ function doPost(e) {
     days: days,
     awards: awards,
     months: months,
+    playDays: playDays,
     admin: admin,
     adminTried: Boolean(request.adminPasscode),
     players: activePlayers_(control),
@@ -254,6 +261,16 @@ function readAward_(date) {
 }
 
 // The month so far, from the MONTHLY tab of the date's month file.
+// The dates in a month (yyyy-MM) that have a games tab with at least one game.
+function listPlayDays_(month) {
+  const ss = monthFile_(month + '-01', false);
+  if (!ss) return [];
+  return ss.getSheets()
+    .filter((tab) => DAY_TAB.test(tab.getName()) && tab.getLastRow() >= 2)
+    .map((tab) => month + '-' + tab.getName().slice(0, 2))
+    .sort();
+}
+
 function readMonthAward_(date) {
   const ss = monthFile_(date, false);
   return readStats_(ss && ss.getSheetByName(MONTHLY), POTM_LABEL);

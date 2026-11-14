@@ -113,6 +113,7 @@
     $('date').max = todayIso();
     $('date').value = state.date;
     $('date').disabled = Boolean(editing);
+    $('date-button').disabled = Boolean(editing);
     document.querySelector('.date-row').classList.toggle('locked', Boolean(editing));
     $('date-label').textContent = formatDate(state.date);
     $('date-today').hidden = state.date !== todayIso();
@@ -183,29 +184,28 @@
   const joinNames = (names) => (names.length < 3 ? names.join(' & ') : `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`);
   const hasWinner = (award) => Boolean(award && award.names && award.names.length);
 
-  // Both cards come from the sheet's own POTD and MONTHLY calculations.
+  // Two compact pills from the sheet's own POTD and MONTHLY calculations. Tap either for the table.
   function renderAwards() {
     const award = state.day && state.day.award;
-    const card = $('potd');
-    card.hidden = !hasWinner(award);
-    if (!card.hidden) {
+    $('potd').hidden = !hasWinner(award);
+    if (!$('potd').hidden) {
       $('potd-label').textContent = award.names.length > 1 ? 'Players of the day' : 'Player of the day';
-      $('potd-list').replaceChildren(...award.names.map((name) => {
-        const row = el('span', 'potd-row');
-        row.append(el('span', 'potd-name', name), el('span', 'potd-points', pts(award.points)));
-        return row;
-      }));
+      $('potd-names').textContent = joinNames(award.names);
+      $('potd-points').textContent = pts(award.points);
       $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
-      $('potd-more').textContent = `Tap for ${state.date === todayIso() ? "today's" : "the day's"} standings`;
+      $('potd').setAttribute('aria-label', `${$('potd-label').textContent}: ${joinNames(award.names)}, ${pts(award.points)}. Tap for the day's standings.`);
     }
 
     const month = state.month && state.month.award;
     $('potm').hidden = !hasWinner(month);
     if (!$('potm').hidden) {
-      $('potm-label').textContent = `${month.names.length > 1 ? 'Players' : 'Player'} of the month · ${monthName(state.date)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}`;
+      const short = monthName(state.date).slice(0, 3);
+      $('potm-label').textContent = `${month.names.length > 1 ? 'Players' : 'Player'} of ${short}`;
       $('potm-names').textContent = joinNames(month.names);
       $('potm-points').textContent = pts(month.points);
+      $('potm').setAttribute('aria-label', `${month.names.length > 1 ? 'Players' : 'Player'} of the month, ${monthName(state.date)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}: ${joinNames(month.names)}, ${pts(month.points)}. Tap for the month's standings.`);
     }
+    $('awards').hidden = $('potd').hidden && $('potm').hidden;
   }
 
   let standingsKind = 'day';
@@ -636,7 +636,7 @@
   /* ---------- Uploading ---------- */
 
   // Sends anything waiting and brings back the shown day's games from every phone.
-  async function uploadSoon() {
+  async function uploadSoon({ calendarMonths = [] } = {}) {
     if (!navigator.onLine) {
       registerBackgroundSync();
       renderStatus();
@@ -652,7 +652,7 @@
       state.loadingDate = date;
       renderStatus();
       renderGames();
-      result = await store.upload({ dates: [date] });
+      result = await store.upload({ dates: [date], calendarMonths });
       if (result.state === 'busy') {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
@@ -673,6 +673,80 @@
       const reg = await navigator.serviceWorker.ready;
       if (reg.sync) await reg.sync.register('upload-games');
     } catch (err) { /* Not supported here. Uploads run when the app is next open and online. */ }
+  }
+
+  /* ---------- Calendar ---------- */
+
+  // The app's own month calendar, so days with games can carry a blue dot. The dots come from the
+  // sheet (which days have a games tab), plus any day this phone has games for.
+  const isoOf = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  let calMonth = null; // yyyy-MM shown in the calendar
+
+  async function playDaysIn(month) {
+    const days = new Set((await store.getSetting('playdays:' + month)) || []);
+    state.games.forEach((g) => { if (!g.deleted && g.date.startsWith(month)) days.add(g.date); });
+    if (state.day && state.day.rows && state.day.rows.length && state.date.startsWith(month)) days.add(state.date);
+    return days;
+  }
+
+  async function renderCalendar() {
+    const [y, m] = calMonth.split('-').map(Number);
+    const today = todayIso();
+    $('cal-title').textContent = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    $('cal-next').disabled = calMonth >= today.slice(0, 7);
+    const days = await playDaysIn(calMonth);
+    const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Monday first
+    const count = new Date(y, m, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(el('span', 'cal-blank'));
+    for (let d = 1; d <= count; d++) {
+      const iso = isoOf(y, m, d);
+      const btn = el('button', 'cal-day');
+      btn.type = 'button';
+      btn.append(el('span', 'cal-num', String(d)));
+      if (days.has(iso)) {
+        btn.classList.add('has-games');
+        btn.append(el('span', 'cal-dot'));
+      }
+      btn.classList.toggle('today', iso === today);
+      btn.classList.toggle('selected', iso === state.date);
+      btn.disabled = iso > today;
+      btn.setAttribute('aria-label', `${formatDate(iso)}${days.has(iso) ? ', has games' : ''}`);
+      btn.addEventListener('click', () => pickDate(iso));
+      cells.push(btn);
+    }
+    $('cal-grid').replaceChildren(...cells);
+  }
+
+  async function showCalendarMonth(month) {
+    calMonth = month;
+    await renderCalendar();
+    if (!navigator.onLine || !state.configured) return;
+    // Ask the sheet which days of this month have games, then redraw the dots.
+    $('cal-loading').hidden = false;
+    await uploadSoon({ calendarMonths: [month] });
+    $('cal-loading').hidden = true;
+    if ($('calendar').open && calMonth === month) await renderCalendar();
+  }
+
+  function openCalendar() {
+    if ($('date-button').disabled) return;
+    if (!$('calendar').open) $('calendar').showModal();
+    showCalendarMonth(state.date.slice(0, 7));
+  }
+
+  function moveCalendar(step) {
+    const [y, m] = calMonth.split('-').map(Number);
+    const next = new Date(y, m - 1 + step, 1);
+    const month = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    if (month > todayIso().slice(0, 7)) return;
+    showCalendarMonth(month);
+  }
+
+  function pickDate(iso) {
+    $('calendar').close();
+    $('date').value = iso;
+    $('date').dispatchEvent(new Event('change'));
   }
 
   /* ---------- Settings ---------- */
@@ -793,10 +867,11 @@
     await refresh();
     uploadSoon();
   });
-  // Desktop browsers open the calendar only from a small icon, so open it from anywhere on the row.
-  $('date').addEventListener('click', () => {
-    try { $('date').showPicker(); } catch (err) { /* Falls back to the native behaviour. */ }
-  });
+  $('date-button').addEventListener('click', openCalendar);
+  $('cal-prev').addEventListener('click', () => moveCalendar(-1));
+  $('cal-next').addEventListener('click', () => moveCalendar(1));
+  $('cal-close').addEventListener('click', () => $('calendar').close());
+  $('cal-today').addEventListener('click', () => pickDate(todayIso()));
 
   $('picker-search').addEventListener('input', renderPicker);
   $('picker-search').addEventListener('keydown', (event) => {
@@ -843,7 +918,7 @@
   $('standings-close').addEventListener('click', () => $('standings').close());
   $('standings-share').addEventListener('click', () => shareText(standingsText(), 'Standings copied, ready to paste'));
 
-  [$('picker'), $('settings'), $('standings')].forEach((dialog) => {
+  [$('picker'), $('settings'), $('standings'), $('calendar')].forEach((dialog) => {
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) dialog.close(); // Tap on the backdrop.
     });

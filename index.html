@@ -30,13 +30,14 @@
       <button id="update-now" class="btn-small" type="button">Update</button>
     </div>
 
-    <label class="date-row">
+    <button id="date-button" class="date-row" type="button" aria-haspopup="dialog" aria-label="Choose the date">
       <span id="date-label" class="date-label"></span>
       <svg class="date-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       <span id="date-today" class="date-tag">Today</span>
       <span id="admin-pill" class="admin-pill" hidden>Admin mode</span>
-      <input id="date" type="date" aria-label="Date of play">
-    </label>
+    </button>
+    <!-- Holds the chosen date; the calendar below sets it. -->
+    <input id="date" type="date" aria-label="Date of play" hidden>
 
     <p id="past-note" class="past-note" hidden>Past days are view-only. To change this day, edit the sheet.</p>
 
@@ -85,28 +86,30 @@
       </div>
     </form>
 
-    <button id="potd" class="potd" type="button" aria-describedby="potd-more" hidden>
-      <span class="potd-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v1.5A3.5 3.5 0 0 0 8.5 11M16 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 13v4M8.5 20h7M9.5 17h5v3h-5z"/></svg>
-      </span>
-      <span class="potd-body">
-        <span id="potd-label" class="potd-label"></span>
-        <span id="potd-list" class="potd-list"></span>
-        <span id="potd-note" class="potd-note" hidden>Updates once this phone's games upload.</span>
-        <span id="potd-more" class="potd-more">Tap for today's standings</span>
-      </span>
-    </button>
-
-    <button id="potm" class="potm" type="button" hidden>
-      <span class="potm-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="m8.5 13.2-1.5 7.3 5-2.5 5 2.5-1.5-7.3"/></svg>
-      </span>
-      <span class="potm-body">
-        <span id="potm-label" class="potm-label"></span>
-        <span id="potm-names" class="potm-names"></span>
-      </span>
-      <span id="potm-points" class="potm-points"></span>
-    </button>
+    <!-- Player of the Day and of the Month: two compact pills side by side. Tap for standings. -->
+    <div id="awards" class="awards">
+      <button id="potd" class="award award-day" type="button" hidden>
+        <span class="award-label">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v1.5A3.5 3.5 0 0 0 8.5 11M16 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 13v4M8.5 20h7M9.5 17h5v3h-5z"/></svg>
+          <span id="potd-label"></span>
+          <span id="potd-note" class="award-pending" title="Updates once this phone's games upload" hidden>·&nbsp;updating</span>
+        </span>
+        <span class="award-line">
+          <span id="potd-names" class="award-names"></span>
+          <span id="potd-points" class="award-points"></span>
+        </span>
+      </button>
+      <button id="potm" class="award award-month" type="button" hidden>
+        <span class="award-label">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="5"/><path d="m8.5 13.2-1.5 7.3 5-2.5 5 2.5-1.5-7.3"/></svg>
+          <span id="potm-label"></span>
+        </span>
+        <span class="award-line">
+          <span id="potm-names" class="award-names"></span>
+          <span id="potm-points" class="award-points"></span>
+        </span>
+      </button>
+    </div>
 
     <section class="games" aria-labelledby="games-title">
       <h2 id="games-title"></h2>
@@ -149,6 +152,23 @@
       <p class="sheet-hint">Sends the web app URL to a new member, so their app fills it in. They still type the passcode, which is never in the link.</p>
       <p id="app-version" class="app-version"></p>
     </div>
+  </dialog>
+
+  <dialog id="calendar" class="sheet" aria-labelledby="cal-title">
+    <div class="sheet-head cal-head">
+      <button id="cal-prev" class="cal-nav" type="button" aria-label="Previous month">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+      </button>
+      <h2 id="cal-title" tabindex="-1" autofocus></h2>
+      <button id="cal-next" class="cal-nav" type="button" aria-label="Next month">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+      </button>
+      <button id="cal-close" class="link" type="button">Close</button>
+    </div>
+    <div class="cal-week" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+    <div id="cal-grid" class="cal-grid" role="grid"></div>
+    <p class="cal-key"><span class="cal-dot" aria-hidden="true"></span>Days with games<span id="cal-loading" class="cal-loading" hidden> · checking the sheet…</span></p>
+    <button id="cal-today" class="btn btn-quiet btn-wide" type="button">Go to today</button>
   </dialog>
 
   <dialog id="standings" class="sheet">

@@ -120,7 +120,11 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   align-items: center;
   gap: 8px;
   min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--ink);
+  text-align: left;
   cursor: pointer;
 }
 .date-label { font-size: 16px; font-weight: 600; }
@@ -149,9 +153,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 }
 .date-row svg { color: var(--muted); }
 .date-arrow { margin-left: -4px; } /* Sits with the date it opens. */
-.date-row input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.date-row.locked { opacity: .55; cursor: default; }
-.date-row.locked input { pointer-events: none; }
+.date-row:disabled, .date-row.locked { opacity: .55; cursor: default; }
 
 /* Edit banner */
 .edit-banner {
@@ -317,59 +319,42 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   font-size: 14px;
 }
 
-/* Player of the day */
-.potd {
+/* Player of the day and of the month: two pills side by side */
+.awards { display: flex; gap: 8px; margin-top: 14px; }
+.award {
   display: flex;
-  gap: 14px;
-  align-items: center;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--gold-line);
-  border-radius: 16px;
-  background: var(--gold-soft);
-}
-.potd-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: var(--gold);
-  color: #FFFFFF;
-}
-.potd { width: 100%; color: inherit; text-align: left; }
-.potd:active, .potm:active { transform: scale(.99); }
-.potd-body { display: block; flex: 1; min-width: 0; }
-.potd-label { display: block; margin: 0 0 2px; color: var(--gold-text); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.potd-list { display: block; }
-.potd-row { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
-.potd-name { overflow: hidden; font-size: 19px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.potd-points { flex: none; color: var(--gold-text); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.potd-note { display: block; margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.potd-more { display: block; margin-top: 6px; color: var(--gold-text); font-size: 13px; font-weight: 600; }
-.potd-more::after { content: " ›"; }
-
-/* Player of the month */
-.potm {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px 14px;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 14px 9px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 18px;
   background: var(--surface);
   color: inherit;
   text-align: left;
 }
-.potm-icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--gold-soft); color: var(--gold-text); }
-.potm-body { display: block; flex: 1; min-width: 0; }
-.potm-label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
-.potm-names { display: block; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.potm-points { flex: none; color: var(--gold-text); font-weight: 700; font-variant-numeric: tabular-nums; }
-.potm-points::after { content: " ›"; color: var(--muted); }
+.award:active { transform: scale(.98); }
+.award-day { border-color: var(--gold-line); background: var(--gold-soft); }
+.award-label {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--gold-text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.award-label svg { flex: none; }
+.award-month .award-label { color: var(--muted); }
+.award-pending { color: var(--muted); font-weight: 600; letter-spacing: 0; text-transform: none; }
+.award-line { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.award-names { flex: 1; overflow: hidden; font-size: 15px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.award-points { flex: none; color: var(--gold-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.award-points::after { content: " ›"; color: var(--muted); }
 
 /* Standings */
 .table-wrap { margin: 4px -4px 14px; overflow-x: auto; }
@@ -519,3 +504,32 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 
 .games-empty.loading { animation: loading-pulse 1.4s ease-in-out infinite; }
 @keyframes loading-pulse { 50% { opacity: .45; } }
+
+/* Calendar */
+.cal-head { gap: 4px; }
+.cal-head h2 { flex: 1; text-align: center; }
+.cal-nav { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); }
+.cal-nav:disabled { opacity: .35; }
+.cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cal-week { margin: 8px 0 4px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.cal-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.cal-day:disabled { color: var(--muted); opacity: .4; }
+.cal-day.today { border-color: var(--court-strong); font-weight: 750; }
+.cal-day.selected { background: var(--court); color: var(--on-court); font-weight: 750; }
+.cal-day.has-games .cal-num { transform: translateY(-3px); }
+.cal-day .cal-dot { position: absolute; bottom: 6px; }
+.cal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+.cal-day.selected .cal-dot { background: var(--on-court); }
+.cal-key { display: flex; gap: 6px; align-items: center; margin: 12px 2px; color: var(--muted); font-size: 13px; }
+.cal-loading { animation: loading-pulse 1.4s ease-in-out infinite; }

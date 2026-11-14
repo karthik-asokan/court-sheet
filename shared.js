@@ -97,11 +97,12 @@
     }
   }
 
-  async function exchange(url, passcode, adminPasscode, batch, dates) {
+  async function exchange(url, passcode, adminPasscode, batch, dates, calendarMonths) {
     const sentRevs = new Map(batch.map((g) => [g.id, g.rev]));
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
     const body = { passcode, games: batch.map(toPayload), dates };
+    if (calendarMonths && calendarMonths.length) body.calendarMonths = calendarMonths;
     if (adminPasscode) body.adminPasscode = adminPasscode;
     const reply = await post(url, body);
     if (!reply.ok) {
@@ -113,6 +114,10 @@
     // Only if the admin passcode wasn't changed while this request was on its way.
     const adminNow = (await getSetting('adminPasscode')) || '';
     await setSetting('admin', reply.admin === true && adminNow !== '' && adminNow === (adminPasscode || ''));
+    // Days with games, for the calendar's dots.
+    for (const [month, days] of Object.entries(reply.playDays || {})) {
+      await setSetting('playdays:' + month, days);
+    }
     for (const [month, award] of Object.entries(reply.months || {})) {
       await setSetting('month:' + month, { award, fetchedAt: Date.now() });
     }
@@ -134,7 +139,7 @@
   }
 
   // Always makes at least one request, which also brings back the latest games for `dates`.
-  async function uploadAll(dates) {
+  async function uploadAll(dates, calendarMonths) {
     const url = await getSetting('url');
     const passcode = await getSetting('passcode');
     const adminPasscode = await getSetting('adminPasscode');
@@ -145,7 +150,7 @@
       for (;;) {
         const queue = (await allGames()).filter((g) => needsUpload(g) && !hasFailed(g));
         if (!queue.length && lastReply) break;
-        lastReply = await exchange(url, passcode, adminPasscode, queue.slice(0, BATCH_SIZE), dates);
+        lastReply = await exchange(url, passcode, adminPasscode, queue.slice(0, BATCH_SIZE), dates, calendarMonths);
       }
     } catch (err) {
       const state = err.rejected ? 'rejected' : 'network';
@@ -157,12 +162,12 @@
   }
 
   // Page and service worker may both try at once; only one runs.
-  async function upload({ dates = [] } = {}) {
+  async function upload({ dates = [], calendarMonths = [] } = {}) {
     if (root.navigator.locks) {
       return root.navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) =>
-        lock ? uploadAll(dates) : { state: 'busy' });
+        lock ? uploadAll(dates, calendarMonths) : { state: 'busy' });
     }
-    return uploadAll(dates);
+    return uploadAll(dates, calendarMonths);
   }
 
   root.CourtSheet = {
