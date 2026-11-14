@@ -251,6 +251,179 @@
     return `${heading}\n\n${lines.join('\n')}`;
   }
 
+  /* ---------- Standings picture ---------- */
+
+  const loadImage = (src) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+
+  // Draws the open standings as a 1080-pixel-wide PNG, ready for WhatsApp: club header, the winner
+  // block, then the table. Colours follow the app's light theme so it reads well in any chat.
+  async function standingsImage() {
+    const { award } = standingsData();
+    const day = standingsKind === 'day';
+    const W = 1080, P = 64, ROW = 70;
+    const rows = award.table;
+    const H = 200 + 48 + 260 + 48 + 64 + rows.length * ROW + 130;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const c = canvas.getContext('2d');
+    const font = (size, weight = 600) => `${weight} ${size}px "Segoe UI", system-ui, -apple-system, Roboto, sans-serif`;
+    const fit = (text, size, weight, maxWidth, min = 28) => {
+      let s = size;
+      c.font = font(s, weight);
+      while (s > min && c.measureText(text).width > maxWidth) c.font = font(--s, weight);
+      return s;
+    };
+    const clip = (text, maxWidth) => {
+      if (c.measureText(text).width <= maxWidth) return text;
+      let t = text;
+      while (t.length > 1 && c.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+      return t + '…';
+    };
+    const round = (x, y, w, h, r) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); };
+
+    c.fillStyle = '#F4F2EC';
+    c.fillRect(0, 0, W, H);
+
+    // Header: logo, club name, date.
+    c.fillStyle = '#1F6F5C';
+    c.fillRect(0, 0, W, 200);
+    const logo = await loadImage('icons/icon-192.png');
+    if (logo) {
+      c.save();
+      c.beginPath();
+      c.arc(P + 60, 100, 60, 0, Math.PI * 2);
+      c.clip();
+      c.drawImage(logo, P, 40, 120, 120);
+      c.restore();
+    }
+    const tx = logo ? P + 150 : P;
+    c.fillStyle = '#FFFFFF';
+    c.font = font(54, 800);
+    c.fillText('Mavericks', tx, 95);
+    c.globalAlpha = 0.85;
+    c.font = font(32, 500);
+    const [y, m, d] = state.date.split('-').map(Number);
+    const when = day
+      ? new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      : `${monthName(state.date)} ${y}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}`;
+    c.fillText(when, tx, 145);
+    c.globalAlpha = 1;
+
+    // Winner block.
+    let top = 248;
+    round(P, top, W - 2 * P, 260, 32);
+    c.fillStyle = '#FBF3DF';
+    c.fill();
+    c.strokeStyle = '#EBD7A6';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = '#8A5F00';
+    c.font = font(30, 800);
+    const label = `🏆  ${award.names.length > 1 ? 'PLAYERS' : 'PLAYER'} OF THE ${day ? 'DAY' : 'MONTH'}`;
+    c.fillText(label, P + 44, top + 70);
+    const names = joinNames(award.names);
+    const size = fit(names, 72, 800, W - 2 * P - 88);
+    c.fillStyle = '#17211E';
+    c.font = font(size, 800);
+    c.fillText(names, P + 44, top + 160);
+    c.fillStyle = '#8A5F00';
+    c.font = font(40, 700);
+    const won = award.table.filter((p) => award.names.includes(p.name));
+    const record = won.length === 1 ? ` · won ${won[0].won} of ${won[0].played}` : '';
+    c.fillText(`${pts(award.points)}${award.names.length > 1 ? ' each' : ''}${record}`, P + 44, top + 225);
+
+    // Table.
+    top += 260 + 48;
+    const cols = [
+      { x: P + 10, align: 'left', title: '#' },
+      { x: P + 80, align: 'left', title: 'Player' },
+      { x: W - P - 420, align: 'right', title: 'Played' },
+      { x: W - P - 290, align: 'right', title: 'Won' },
+      { x: W - P - 140, align: 'right', title: 'Win %' },
+      { x: W - P - 10, align: 'right', title: 'Pts' },
+    ];
+    c.fillStyle = '#66716C';
+    c.font = font(26, 700);
+    cols.forEach((col) => { c.textAlign = col.align; c.fillText(col.title, col.x, top + 36); });
+    top += 64;
+    const winners = new Set(award.names);
+    rows.forEach((p, i) => {
+      const yTop = top + i * ROW;
+      if (winners.has(p.name)) {
+        round(P, yTop + 4, W - 2 * P, ROW - 8, 16);
+        c.fillStyle = '#FBF3DF';
+        c.fill();
+      } else {
+        c.fillStyle = '#E2DFD6';
+        c.fillRect(P, yTop + ROW - 1, W - 2 * P, 1);
+      }
+      const base = yTop + ROW / 2 + 12;
+      const gold = winners.has(p.name);
+      const cells = [
+        String(i + 1),
+        p.name,
+        String(p.played),
+        String(p.won),
+        p.rate === null ? '–' : `${Math.round(p.rate * 100)}%`,
+        String(p.points).replace('-', '−'),
+      ];
+      cells.forEach((text, k) => {
+        const col = cols[k];
+        c.textAlign = col.align;
+        c.fillStyle = k === 0 ? '#66716C' : (gold && (k === 1 || k === 5) ? '#8A5F00' : '#17211E');
+        c.font = font(34, k === 1 || k === 5 ? 750 : 500);
+        c.fillText(k === 1 ? clip(text, cols[2].x - cols[1].x - 120) : text, col.x, base);
+      });
+    });
+    c.textAlign = 'left';
+
+    // Footer.
+    c.fillStyle = '#66716C';
+    const rules = 'Points: 1 for a win, 2 above 15 or holding the losers to 7 or less (losers −1). Ties go to win rate.';
+    fit(rules, 24, 500, W - 2 * P, 16);
+    c.fillText(rules, P, H - 60);
+
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  }
+
+  // Shares the standings as a picture where the phone allows it; otherwise as text, or a download.
+  async function shareStandings() {
+    const btn = $('standings-share');
+    btn.disabled = true;
+    try {
+      const blob = await standingsImage();
+      const name = `Mavericks-${standingsKind === 'day' ? state.date : state.date.slice(0, 7)}.png`;
+      const file = blob && new File([blob], name, { type: 'image/png' });
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Mavericks standings' });
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // Closed the share sheet.
+        }
+      }
+      if (file && !navigator.share) {
+        // Desktop browsers without sharing: save the picture instead.
+        const a = el('a');
+        a.href = URL.createObjectURL(file);
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        toast('Picture saved');
+        return;
+      }
+      await shareText(standingsText(), 'Standings copied, ready to paste');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function shareText(text, done) {
     if (navigator.share) {
       try {
@@ -916,7 +1089,7 @@
   $('potd').addEventListener('click', () => openStandings('day'));
   $('potm').addEventListener('click', () => openStandings('month'));
   $('standings-close').addEventListener('click', () => $('standings').close());
-  $('standings-share').addEventListener('click', () => shareText(standingsText(), 'Standings copied, ready to paste'));
+  $('standings-share').addEventListener('click', shareStandings);
 
   [$('picker'), $('settings'), $('standings'), $('calendar')].forEach((dialog) => {
     dialog.addEventListener('click', (event) => {
