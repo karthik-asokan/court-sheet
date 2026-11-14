@@ -31,6 +31,7 @@
     configured: false,
     problem: null,
     month: null, // The sheet's MONTHLY result for the shown date's month.
+    quarter: null, // The quarter so far, added up from its months' MONTHLY tabs.
     admin: false, // The admin passcode was accepted: past days can be changed too.
     justLanded: null, // Games that just reached the sheet, briefly highlighted.
     loadingDate: null, // The day being fetched from the sheet right now.
@@ -184,35 +185,55 @@
   const joinNames = (names) => (names.length < 3 ? names.join(' & ') : `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`);
   const hasWinner = (award) => Boolean(award && award.names && award.names.length);
 
-  // Two compact pills from the sheet's own POTD and MONTHLY calculations. Tap either for the table.
-  function renderAwards() {
-    const award = state.day && state.day.award;
-    $('potd').hidden = !hasWinner(award);
-    if (!$('potd').hidden) {
-      $('potd-label').textContent = award.names.length > 1 ? 'Players of the day' : 'Player of the day';
-      $('potd-names').textContent = joinNames(award.names);
-      $('potd-points').textContent = pts(award.points);
-      $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
-      $('potd').setAttribute('aria-label', `${$('potd-label').textContent}: ${joinNames(award.names)}, ${pts(award.points)}. Tap for the day's standings.`);
-    }
+  // Calendar quarters: Q1 is Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec.
+  const quarterOf = (iso) => Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1;
+  const quarterKey = (iso) => `${iso.slice(0, 4)}-Q${quarterOf(iso)}`;
+  const quarterMonths = (iso) => {
+    const first = (quarterOf(iso) - 1) * 3;
+    const name = (m) => new Date(2000, m, 1).toLocaleDateString(undefined, { month: 'short' });
+    return `${name(first)}–${name(first + 2)}`;
+  };
+  const soFar = (sameAsToday) => (sameAsToday ? ' so far' : '');
 
-    const month = state.month && state.month.award;
-    $('potm').hidden = !hasWinner(month);
-    if (!$('potm').hidden) {
-      const short = monthName(state.date).slice(0, 3);
-      $('potm-label').textContent = `${month.names.length > 1 ? 'Players' : 'Player'} of ${short}`;
-      $('potm-names').textContent = joinNames(month.names);
-      $('potm-points').textContent = pts(month.points);
-      $('potm').setAttribute('aria-label', `${month.names.length > 1 ? 'Players' : 'Player'} of the month, ${monthName(state.date)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}: ${joinNames(month.names)}, ${pts(month.points)}. Tap for the month's standings.`);
-    }
-    $('awards').hidden = $('potd').hidden && $('potm').hidden;
+  // Up to three compact pills from the sheet's POTD and MONTHLY tabs (the quarter adds up its
+  // months). Short labels so three fit side by side; tap any for its standings.
+  function renderAwards() {
+    const fill = (id, award, label, spoken) => {
+      $(id).hidden = !hasWinner(award);
+      if ($(id).hidden) return;
+      $(`${id}-label`).textContent = label;
+      $(`${id}-names`).textContent = joinNames(award.names);
+      $(`${id}-points`).textContent = pts(award.points);
+      $(id).setAttribute('aria-label', `${award.names.length > 1 ? 'Players' : 'Player'} of the ${spoken}: ${joinNames(award.names)}, ${pts(award.points)}. Tap for the standings.`);
+    };
+    const today = todayIso();
+    fill('potd', state.day && state.day.award, 'Day', 'day');
+    fill('potm', state.month && state.month.award, monthName(state.date).slice(0, 3),
+      `month, ${monthName(state.date)}${soFar(state.date.slice(0, 7) === today.slice(0, 7))}`);
+    fill('potq', state.quarter && state.quarter.award, `Q${quarterOf(state.date)}`,
+      `quarter, Q${quarterOf(state.date)} ${quarterMonths(state.date)}${soFar(quarterKey(state.date) === quarterKey(today))}`);
+    if (!$('potd').hidden) $('potd-note').hidden = !state.games.some((g) => g.date === state.date && store.needsUpload(g));
+    $('awards').hidden = $('potd').hidden && $('potm').hidden && $('potq').hidden;
   }
 
   let standingsKind = 'day';
   function standingsData() {
+    const y = state.date.slice(0, 4);
+    if (standingsKind === 'quarter') {
+      return { award: state.quarter && state.quarter.award, title: `Standings · Q${quarterOf(state.date)} ${y} (${quarterMonths(state.date)})` };
+    }
     const award = standingsKind === 'day' ? state.day && state.day.award : state.month && state.month.award;
-    const title = standingsKind === 'day' ? `Standings · ${formatDate(state.date)}` : `Standings · ${monthName(state.date)} ${state.date.slice(0, 4)}`;
+    const title = standingsKind === 'day' ? `Standings · ${formatDate(state.date)}` : `Standings · ${monthName(state.date)} ${y}`;
     return { award, title };
+  }
+
+  // "Day" / "Month" / "Quarter", and the period it covers, for the shared text and picture.
+  function periodInfo() {
+    const y = state.date.slice(0, 4);
+    const today = todayIso();
+    if (standingsKind === 'day') return { word: 'Day', when: formatDate(state.date) };
+    if (standingsKind === 'month') return { word: 'Month', when: `${monthName(state.date)} ${y}${soFar(state.date.slice(0, 7) === today.slice(0, 7))}` };
+    return { word: 'Quarter', when: `Q${quarterOf(state.date)} ${y} (${quarterMonths(state.date)})${soFar(quarterKey(state.date) === quarterKey(today))}` };
   }
 
   function openStandings(kind) {
@@ -244,9 +265,8 @@
   // Plain text that reads well in WhatsApp.
   function standingsText() {
     const { award } = standingsData();
-    const heading = standingsKind === 'day'
-      ? `🏸 Mavericks · ${formatDate(state.date)}\n🏆 ${award.names.length > 1 ? 'Players' : 'Player'} of the Day: ${joinNames(award.names)} (${pts(award.points)})`
-      : `🏸 Mavericks · ${monthName(state.date)} ${state.date.slice(0, 4)}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}\n🏆 ${award.names.length > 1 ? 'Players' : 'Player'} of the Month: ${joinNames(award.names)} (${pts(award.points)})`;
+    const { word, when } = periodInfo();
+    const heading = `🏸 Mavericks · ${when}\n🏆 ${award.names.length > 1 ? 'Players' : 'Player'} of the ${word}: ${joinNames(award.names)} (${pts(award.points)})`;
     const lines = award.table.map((p, i) => `${i + 1}. ${p.name}: ${pts(p.points)}, won ${p.won} of ${p.played}`);
     return `${heading}\n\n${lines.join('\n')}`;
   }
@@ -311,7 +331,7 @@
     const [y, m, d] = state.date.split('-').map(Number);
     const when = day
       ? new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-      : `${monthName(state.date)} ${y}${state.date.slice(0, 7) === todayIso().slice(0, 7) ? ' so far' : ''}`;
+      : periodInfo().when;
     c.fillText(when, tx, 145);
     c.globalAlpha = 1;
 
@@ -325,7 +345,7 @@
     c.stroke();
     c.fillStyle = '#8A5F00';
     c.font = font(30, 800);
-    const label = `🏆  ${award.names.length > 1 ? 'PLAYERS' : 'PLAYER'} OF THE ${day ? 'DAY' : 'MONTH'}`;
+    const label = `🏆  ${award.names.length > 1 ? 'PLAYERS' : 'PLAYER'} OF THE ${periodInfo().word.toUpperCase()}`;
     c.fillText(label, P + 44, top + 70);
     const names = joinNames(award.names);
     const size = fit(names, 72, 800, W - 2 * P - 88);
@@ -398,7 +418,8 @@
     btn.disabled = true;
     try {
       const blob = await standingsImage();
-      const name = `Mavericks-${standingsKind === 'day' ? state.date : state.date.slice(0, 7)}.png`;
+      const period = { day: state.date, month: state.date.slice(0, 7), quarter: quarterKey(state.date) }[standingsKind];
+      const name = `Mavericks-${period}.png`;
       const file = blob && new File([blob], name, { type: 'image/png' });
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -474,6 +495,7 @@
     state.configured = Boolean(await store.getSetting('url'));
     state.problem = await store.getSetting('lastProblem');
     state.month = (await store.getSetting('month:' + state.date.slice(0, 7))) || null;
+    state.quarter = (await store.getSetting('quarter:' + quarterKey(state.date))) || null;
     state.admin = (await store.getSetting('admin')) === true;
     if (viewOnly() && state.editingId) resetForm(); // Midnight passed mid-edit.
     noticeUploads();
@@ -1088,6 +1110,7 @@
 
   $('potd').addEventListener('click', () => openStandings('day'));
   $('potm').addEventListener('click', () => openStandings('month'));
+  $('potq').addEventListener('click', () => openStandings('quarter'));
   $('standings-close').addEventListener('click', () => $('standings').close());
   $('standings-share').addEventListener('click', shareStandings);
 
@@ -1163,7 +1186,10 @@
     for (const key of await store.settingKeys()) {
       const day = /^day:(\d{4}-\d{2}-\d{2})$/.exec(key);
       const month = /^month:(\d{4}-\d{2})$/.exec(key);
-      if ((day && day[1] < oldest) || (month && month[1] < oldest.slice(0, 7))) await store.removeSetting(key);
+      const quarter = /^quarter:(\d{4}-Q\d)$/.exec(key);
+      if ((day && day[1] < oldest) || (month && month[1] < oldest.slice(0, 7)) || (quarter && quarter[1] < quarterKey(oldest))) {
+        await store.removeSetting(key);
+      }
     }
   }
 

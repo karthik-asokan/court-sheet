@@ -118,6 +118,9 @@
     for (const [month, days] of Object.entries(reply.playDays || {})) {
       await setSetting('playdays:' + month, days);
     }
+    for (const [quarter, award] of Object.entries(reply.quarters || {})) {
+      await setSetting('quarter:' + quarter, { award, fetchedAt: Date.now() });
+    }
     for (const [month, award] of Object.entries(reply.months || {})) {
       await setSetting('month:' + month, { award, fetchedAt: Date.now() });
     }

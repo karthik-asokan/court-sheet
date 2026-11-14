@@ -95,6 +95,7 @@ function doPost(e) {
       });
       // The games are saved either way; a problem here only affects the award tabs.
       touched.forEach((date) => {
+        forgetQuarter_(date);
         try {
           refreshDay_(control, date);
         } catch (err) {
@@ -112,11 +113,14 @@ function doPost(e) {
   const days = {};
   const awards = {};
   const months = {};
+  const quarters = {};
   dates.forEach((date) => {
     days[date] = readDay_(date);
     awards[date] = readAward_(date);
     const month = date.slice(0, 7);
     if (!(month in months)) months[month] = readMonthAward_(date);
+    const quarter = quarterKey_(date);
+    if (!(quarter in quarters)) quarters[quarter] = readQuarterAward_(date);
   });
   // Which days have games, for the dots on the app's calendar: the shown months plus any the
   // calendar asked for (at most a few per request).
@@ -131,6 +135,7 @@ function doPost(e) {
     days: days,
     awards: awards,
     months: months,
+    quarters: quarters,
     playDays: playDays,
     admin: admin,
     adminTried: Boolean(request.adminPasscode),
@@ -269,6 +274,52 @@ function listPlayDays_(month) {
     .filter((tab) => DAY_TAB.test(tab.getName()) && tab.getLastRow() >= 2)
     .map((tab) => month + '-' + tab.getName().slice(0, 2))
     .sort();
+}
+
+/* ---------- Player of the Quarter ---------- */
+
+// Calendar quarters: Q1 is Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec. "2026-Q4".
+function quarterKey_(date) {
+  return date.slice(0, 4) + '-Q' + (Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1);
+}
+
+// The quarter so far, added up from the MONTHLY tab of each of its month files, so hand
+// corrections in the sheet count too. Same rules as the day and month: most points, a tie goes to
+// the higher win rate, then it's shared. Kept for 5 minutes, and forgotten whenever one of the
+// quarter's games is saved, so opening three files doesn't slow every sync.
+function readQuarterAward_(date) {
+  const key = 'quarter:' + quarterKey_(date);
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+  const first = Math.floor((Number(date.slice(5, 7)) - 1) / 3) * 3 + 1;
+  const totals = {};
+  for (let m = first; m < first + 3; m++) {
+    const month = date.slice(0, 4) + '-' + String(m).padStart(2, '0');
+    const award = readMonthAward_(month + '-01');
+    (award ? award.table : []).forEach((p) => {
+      const t = totals[p.name] || (totals[p.name] = { name: p.name, played: 0, won: 0, points: 0 });
+      t.played += p.played || 0;
+      t.won += p.won || 0;
+      t.points += p.points || 0;
+    });
+  }
+  const table = Object.keys(totals).map((n) => totals[n]).filter((p) => p.played > 0).map((p) => ({
+    name: p.name, played: p.played, won: p.won, lost: p.played - p.won, rate: p.won / p.played, points: p.points,
+  })).sort((a, b) => (b.points - a.points) || (b.rate - a.rate) || a.name.localeCompare(b.name));
+  let result = null;
+  if (table.length) {
+    const top = table[0].points;
+    const bestRate = Math.max.apply(null, table.filter((p) => p.points === top).map((p) => p.rate));
+    const names = table.filter((p) => p.points === top && p.rate === bestRate).map((p) => p.name);
+    result = { names: names, points: top, table: table };
+  }
+  cache.put(key, JSON.stringify(result), 300);
+  return result;
+}
+
+function forgetQuarter_(date) {
+  CacheService.getScriptCache().remove('quarter:' + quarterKey_(date));
 }
 
 function readMonthAward_(date) {

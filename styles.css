@@ -319,42 +319,45 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
   font-size: 14px;
 }
 
-/* Player of the day and of the month: two pills side by side */
-.awards { display: flex; gap: 8px; margin-top: 14px; }
+/* Player of the day, month and quarter: up to three pills in a row */
+.awards { display: flex; gap: 6px; margin-top: 14px; }
 .award {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  padding: 8px 14px 9px;
+  padding: 7px 10px 8px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--surface);
   color: inherit;
   text-align: left;
 }
 .award:active { transform: scale(.98); }
 .award-day { border-color: var(--gold-line); background: var(--gold-soft); }
+.award-quarter { border-color: var(--blue-line); background: var(--blue-soft); }
+.award-top { display: flex; gap: 4px; align-items: center; justify-content: space-between; min-width: 0; }
 .award-label {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   align-items: center;
+  min-width: 0;
   overflow: hidden;
   color: var(--gold-text);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: .04em;
+  letter-spacing: .05em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 .award-label svg { flex: none; }
 .award-month .award-label { color: var(--muted); }
-.award-pending { color: var(--muted); font-weight: 600; letter-spacing: 0; text-transform: none; }
-.award-line { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
-.award-names { flex: 1; overflow: hidden; font-size: 15px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.award-points { flex: none; color: var(--gold-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.award-points::after { content: " ›"; color: var(--muted); }
+.award-quarter .award-label, .award-quarter .award-points { color: var(--blue-text); }
+.award-pending { color: var(--muted); }
+.award-points { flex: none; color: var(--gold-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.award-line { display: flex; min-width: 0; }
+.award-names { flex: 1; overflow: hidden; font-size: 14.5px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Standings */
 .table-wrap { margin: 4px -4px 14px; overflow-x: auto; }
