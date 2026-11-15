@@ -21,6 +21,8 @@
   --blue-soft: #EAF3FC;
   --blue-line: #C3DCF3;
   --blue-text: #1D5E99;
+  --pink-soft: #FCE8EF;
+  --pink-text: #A13C62;
   --radius: 18px;
   --shadow: 0 1px 2px rgba(23, 33, 30, .06), 0 8px 24px rgba(23, 33, 30, .06);
 }
@@ -44,6 +46,8 @@
     --blue-soft: #15283A;
     --blue-line: #24435F;
     --blue-text: #8CC2F2;
+    --pink-soft: #3A1E2A;
+    --pink-text: #F2A6C2;
     --shadow: none;
   }
 }
@@ -552,3 +556,7 @@ li:has(.dup-actions) .game { border-bottom: 0; }
 .held-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .held-meta, .held-hint { color: var(--muted); font-size: 12px; }
 .held-hint { margin: 6px 0 0; }
+
+/* Identical games the players confirmed weren't duplicates */
+.game.identical { background: var(--pink-soft); }
+.game-identical { grid-column: 2 / -1; color: var(--pink-text); font-size: 12.5px; font-weight: 600; }

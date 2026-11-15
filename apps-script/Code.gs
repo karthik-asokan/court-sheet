@@ -35,6 +35,10 @@ const ID_COLUMN = DAY_HEADERS.length;
 const ENTERED_COLUMN = ID_COLUMN + 1;
 const ENTERED_HEADER = 'ENTERED';
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000; // No doubles game is over in less than this.
+// Hidden column after ENTERED: for a game saved after someone confirmed it isn't a duplicate,
+// the ID of the identical game, so every phone can mark the pair.
+const SAME_AS_COLUMN = ENTERED_COLUMN + 1;
+const SAME_AS_HEADER = 'SAME AS';
 const STAT_HEADERS = ['PLAYER', 'TOTAL\nGAMES PLAYED', 'GAMES WON', 'GAMES LOST', 'WIN\nRATE %', 'POINTS'];
 const STAT_WIDTHS = [130, 100, 85, 85, 85, 80];
 // Pictures in the title row of every POTD and MONTHLY tab, served with the app.
@@ -214,6 +218,14 @@ function saveGame_(control, game, admin) {
     ensureEnteredColumn_(tab);
     tab.getRange(r, ENTERED_COLUMN).setValue(Number(game.enteredAt) || Date.now());
   }
+  // Confirmed as a separate game although identical to another: remember which one.
+  // An edit keeps the mark only while the game is still identical to another.
+  if (game.allowDuplicate || existing) {
+    ensureEnteredColumn_(tab);
+    const had = existing ? String(tab.getRange(r, SAME_AS_COLUMN).getValue()) : '';
+    const sameAs = game.allowDuplicate || had ? findIdentical_(tab, game, [winner1, winner2, loser1, loser2]) : '';
+    if (sameAs || had) tab.getRange(r, SAME_AS_COLUMN).setValue(sameAs);
+  }
 }
 
 // Today's date as yyyy-MM-dd, in the time zone set under Project Settings in the Apps Script editor.
@@ -269,11 +281,15 @@ function readDay_(date) {
   if (!tab || tab.getLastRow() < 2) return [];
   const text = (v) => String(v).trim();
   const score = (v) => (v === '' ? null : Number(v));
-  let values = tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues();
-  if (values.some((r) => hasPlayers_(r) && !text(r[ID_COLUMN - 1]))) values = assignIds_(tab) || values;
+  let values = tab.getRange(2, 1, tab.getLastRow() - 1, SAME_AS_COLUMN).getValues();
+  if (values.some((r) => hasPlayers_(r) && !text(r[ID_COLUMN - 1]))) {
+    const ids = assignIds_(tab);
+    if (ids) ids.forEach((row, i) => { values[i][ID_COLUMN - 1] = row[ID_COLUMN - 1]; });
+  }
   return values
     .map((r) => ({
       id: text(r[11]),
+      sameAs: text(r[SAME_AS_COLUMN - 1] === undefined ? '' : r[SAME_AS_COLUMN - 1]),
       winner1: text(r[1]),
       winner2: text(r[2]),
       winnerScore: score(r[3]),
@@ -466,10 +482,24 @@ function styleDayTab_(tab) {
 
 // Day tabs made before the ENTERED column existed get it the first time a game is saved to them.
 function ensureEnteredColumn_(tab) {
-  const header = tab.getRange(1, ENTERED_COLUMN);
-  if (String(header.getValue()) === ENTERED_HEADER) return;
-  header.setValue(ENTERED_HEADER).setFontWeight('bold');
-  tab.hideColumns(ENTERED_COLUMN);
+  [[ENTERED_COLUMN, ENTERED_HEADER], [SAME_AS_COLUMN, SAME_AS_HEADER]].forEach(([col, title]) => {
+    const header = tab.getRange(1, col);
+    if (String(header.getValue()) === title) return;
+    header.setValue(title).setFontWeight('bold');
+    tab.hideColumns(col);
+  });
+}
+
+// For a game the players confirmed isn't a duplicate: the ID of the identical game already on
+// the day (same pairs, either order, and score), whenever it was entered.
+function findIdentical_(tab, game, names) {
+  if (tab.getLastRow() < 2) return '';
+  const key = (a, b) => [String(a).trim().toLowerCase(), String(b).trim().toLowerCase()].sort().join('|');
+  const rows = tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues();
+  const match = rows.find((r) => String(r[ID_COLUMN - 1]) !== game.id
+    && key(r[1], r[2]) === key(names[0], names[1]) && key(r[6], r[7]) === key(names[2], names[3])
+    && Number(r[3]) === game.winnerScore && Number(r[8]) === game.loserScore);
+  return match ? String(match[ID_COLUMN - 1]) : '';
 }
 
 // The same game entered on two phones: a new game with the same winning pair, losing pair (either

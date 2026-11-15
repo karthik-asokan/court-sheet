@@ -139,8 +139,28 @@
     return wrap;
   }
 
+  // Games the players confirmed weren't duplicates although identical to another (same pairs, in
+  // either order, and score): game id -> the other game's number. The sheet records the link
+  // (SAME AS column); a game saved on this phone and not yet uploaded is linked here meanwhile.
+  function identicalTwins(games) {
+    const pair = (a, b) => [a, b].map((n) => String(n || '').trim().toLowerCase()).sort().join('|');
+    const same = (a, b) => pair(a.winner1, a.winner2) === pair(b.winner1, b.winner2)
+      && pair(a.loser1, a.loser2) === pair(b.loser1, b.loser2)
+      && a.winnerScore === b.winnerScore && a.loserScore === b.loserScore;
+    const twins = new Map();
+    games.forEach((g, i) => {
+      let j = g.sameAs ? games.findIndex((o) => o.id === g.sameAs) : -1;
+      if (j < 0 && g.allowDuplicate && !g.fromSheet) j = games.findIndex((o, k) => k !== i && same(o, g));
+      if (j < 0 || j === i || !same(games[j], g)) return; // Gone, or no longer identical.
+      twins.set(g.id, j + 1);
+      if (!twins.has(games[j].id)) twins.set(games[j].id, i + 1);
+    });
+    return twins;
+  }
+
   function renderGames() {
     const games = dayGames();
+    const twins = identicalTwins(games);
     const list = $('games-list');
     list.replaceChildren();
     $('games-title').textContent = games.length === 1 ? '1 game' : `${games.length} games`;
@@ -168,6 +188,10 @@
       if (game.otherPhone) names.append(el('span', 'from', !game.id || game.id.startsWith('sheet-') ? 'Typed into the sheet' : 'Entered on another phone'));
       btn.append(el('span', 'game-num', number), names, el('span', 'game-score', score), stateIcon(game));
       if (state.justLanded && state.justLanded.has(game.id)) btn.classList.add('landed');
+      if (twins.has(game.id)) {
+        btn.classList.add('identical');
+        btn.append(el('span', 'game-identical', `Identical to game ${twins.get(game.id)}. (Player has confirmed not a duplicate)`));
+      }
       const held = store.hasFailed(game) && game.duplicateOf;
       if (store.hasFailed(game)) btn.append(el('span', held ? 'game-error held' : 'game-error', game.error));
       btn.addEventListener('click', () => startEdit(game.id));
