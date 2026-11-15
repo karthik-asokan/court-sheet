@@ -543,3 +543,12 @@ li:has(.dup-actions) .game { border-bottom: 0; }
 .dup-actions { display: flex; gap: 8px; padding: 0 2px 12px 30px; border-bottom: 1px solid var(--line); }
 .btn-chip { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 650; }
 .btn-chip.danger { color: var(--danger); }
+
+/* Games held back on other phones: a note every phone shows */
+.held-note { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--wait); border-radius: 12px; background: var(--surface); }
+.held-head { margin: 0 0 6px; color: var(--wait); font-size: 13px; font-weight: 700; }
+.held-item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 4px 0; }
+.held-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.held-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.held-meta, .held-hint { color: var(--muted); font-size: 12px; }
+.held-hint { margin: 6px 0 0; }

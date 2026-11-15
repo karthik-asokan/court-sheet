@@ -77,10 +77,12 @@ function doPost(e) {
 
   const control = SpreadsheetApp.getActiveSpreadsheet();
   const games = request.games || [];
+  // Held games a phone has dropped ("Remove mine") or an admin has cleared, to take off the list.
+  const dismiss = (request.dismissHeld || []).map(String).slice(0, 50);
   let results = [];
   const warnings = [];
   // Only writes need the lock, so phones that are just checking for new games never wait.
-  if (games.length) {
+  if (games.length || dismiss.length) {
     const lock = LockService.getScriptLock();
     try {
       lock.waitLock(25000);
@@ -88,6 +90,7 @@ function doPost(e) {
       return reply_({ ok: false, error: 'The sheet is busy. Try again in a moment.' });
     }
     try {
+      dismissHeld_(control, dismiss);
       const touched = new Set();
       results = games.map((game) => {
         try {
@@ -142,6 +145,7 @@ function doPost(e) {
     months: months,
     quarters: quarters,
     playDays: playDays,
+    held: readHeld_(control, dates),
     admin: admin,
     adminTried: Boolean(request.adminPasscode),
     players: activePlayers_(control),
@@ -173,14 +177,20 @@ function saveGame_(control, game, admin) {
 
   if (game.deleted) {
     if (existing) tab.deleteRow(existing);
+    dismissHeld_(control, [game.id]);
     return;
   }
 
-  // A new game that looks like one another phone just entered is held back for the phone to confirm.
+  // A new game that looks like one another phone just entered is held back for the phone to confirm,
+  // and listed so every phone can see something is waiting.
   if (!existing) {
     const duplicate = findDuplicate_(tab, game, [winner1, winner2, loser1, loser2]);
-    if (duplicate) throw duplicate;
+    if (duplicate) {
+      recordHeld_(control, game, [winner1, winner2, loser1, loser2], duplicate.duplicateOf);
+      throw duplicate;
+    }
   }
+  dismissHeld_(control, [game.id]); // Saved after all ("It's a separate game").
 
   const r = existing || Math.max(tab.getLastRow(), 1) + 1;
   tab.getRange(r, 1, 1, ID_COLUMN).setValues([[
@@ -630,6 +640,61 @@ function writeStats_(tab, title, players, dayNames, label) {
 }
 
 /* ---------- Players ---------- */
+
+/* ---------- Held games ---------- */
+
+// A hidden "Held games" tab in this sheet lists games the sheet held back as likely duplicates,
+// so every phone can show that one is waiting for a check. It's emptied as each is resolved.
+const HELD_TAB = 'Held games';
+const HELD_HEADERS = ['ID', 'DATE', 'WINNERS', 'LOSERS', 'SCORE', 'LOOKS LIKE GAME', 'HELD AT'];
+
+function heldTab_(control) {
+  let tab = control.getSheetByName(HELD_TAB);
+  if (!tab) {
+    tab = control.insertSheet(HELD_TAB);
+    tab.getRange(1, 1, 1, HELD_HEADERS.length).setValues([HELD_HEADERS]).setFontWeight('bold');
+    tab.hideSheet();
+  }
+  return tab;
+}
+
+function recordHeld_(control, game, names, duplicateOf) {
+  const tab = heldTab_(control);
+  dismissHeld_(control, [game.id]); // One entry per game, however often it's sent.
+  tab.appendRow([
+    game.id,
+    "'" + game.date,
+    safeText_(names[0] + ' & ' + names[1]),
+    safeText_(names[2] + ' & ' + names[3]),
+    "'" + game.winnerScore + '–' + game.loserScore,
+    duplicateOf ? duplicateOf.gameNo : '',
+    Date.now(),
+  ]);
+}
+
+function dismissHeld_(control, ids) {
+  if (!ids.length) return;
+  const tab = control.getSheetByName(HELD_TAB);
+  if (!tab || tab.getLastRow() < 2) return;
+  const values = tab.getRange(2, 1, tab.getLastRow() - 1, 1).getValues();
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (ids.indexOf(String(values[i][0])) >= 0) tab.deleteRow(i + 2);
+  }
+}
+
+// Held games on the dates asked about, for the note on every phone.
+function readHeld_(control, dates) {
+  const tab = control.getSheetByName(HELD_TAB);
+  const out = {};
+  dates.forEach((d) => { out[d] = []; });
+  if (!tab || tab.getLastRow() < 2) return out;
+  tab.getRange(2, 1, tab.getLastRow() - 1, HELD_HEADERS.length).getValues().forEach((r) => {
+    const date = String(r[1]).replace(/^'/, '');
+    if (!(date in out)) return;
+    out[date].push({ id: String(r[0]), winners: String(r[2]), losers: String(r[3]), score: String(r[4]).replace(/^'/, ''), gameNo: Number(r[5]) || null, heldAt: Number(r[6]) || null });
+  });
+  return out;
+}
 
 function ensurePlayersTab_(control) {
   let tab = control.getSheetByName('Players');

@@ -105,6 +105,9 @@
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
     const body = { passcode, games: batch.map(toPayload), dates };
+    // Held games dropped on this phone or cleared by an admin, to take off the shared list.
+    const dismissing = (await getSetting('dismissHeld')) || [];
+    if (dismissing.length) body.dismissHeld = dismissing;
     if (calendarMonths && calendarMonths.length) body.calendarMonths = calendarMonths;
     if (adminPasscode) body.adminPasscode = adminPasscode;
     const reply = await post(url, body);
@@ -128,9 +131,14 @@
       await setSetting('month:' + month, { award, fetchedAt: Date.now() });
     }
     // Saved before the games below are marked uploaded, so the list never briefly loses one.
+    if (dismissing.length) {
+      const still = ((await getSetting('dismissHeld')) || []).filter((id) => !dismissing.includes(id));
+      await setSetting('dismissHeld', still);
+    }
     for (const [date, rows] of Object.entries(reply.days || {})) {
       const award = (reply.awards && reply.awards[date]) || null; // Older scripts send none.
-      await setSetting('day:' + date, { rows, award, fetchedAt: Date.now() });
+      const held = (reply.held && reply.held[date]) || [];
+      await setSetting('day:' + date, { rows, award, held, fetchedAt: Date.now() });
     }
 
     for (const result of reply.results || []) {
@@ -141,7 +149,21 @@
         return { ...cur, syncedRev: cur.rev, errorRev: null, error: null, duplicateOf: null };
       });
     }
+    // A game this phone had held that's no longer on the shared list was cleared by an admin.
+    if (reply.held) {
+      for (const g of await allGames()) {
+        const list = reply.held[g.date];
+        if (list && g.duplicateOf && hasFailed(g) && !list.some((h) => h.id === g.id)) await removeGame(g.id);
+      }
+    }
     return reply;
+  }
+
+  // Take a held game off the shared list at the next connection.
+  async function queueDismiss(id) {
+    const list = (await getSetting('dismissHeld')) || [];
+    if (!list.includes(id)) list.push(id);
+    await setSetting('dismissHeld', list);
   }
 
   // Always makes at least one request, which also brings back the latest games for `dates`.
@@ -178,6 +200,6 @@
 
   root.CourtSheet = {
     getSetting, setSetting, removeSetting, settingKeys, allGames, putGame, removeGame, updateGame,
-    needsUpload, hasFailed, upload,
+    needsUpload, hasFailed, upload, queueDismiss,
   };
 })(self);

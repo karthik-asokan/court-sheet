@@ -518,6 +518,7 @@
     renderForm();
     renderGames();
     renderAwards();
+    renderHeldNote();
     renderStatus();
     if ($('picker').open) renderPicker();
     if ($('standings').open) openStandings(standingsKind);
@@ -771,9 +772,50 @@
     } else {
       const game = state.games.find((g) => g.id === id);
       await store.removeGame(id);
+      await store.queueDismiss(id); // Also takes it off the note other phones show.
       await refresh();
       toast(game && game.duplicateOf ? `Removed. Game ${game.duplicateOf.gameNo} stands.` : 'Removed');
+      uploadSoon();
     }
+  }
+
+  // Games held back on other phones, from the sheet's shared list. Shown on every phone so the
+  // club knows one is waiting; an admin can clear one that nobody is going to resolve.
+  function renderHeldNote() {
+    const mine = new Set(state.games.map((g) => g.id));
+    const held = ((state.day && state.day.held) || []).filter((h) => !mine.has(h.id));
+    const note = $('held-note');
+    note.hidden = !held.length;
+    if (!held.length) return;
+    const head = el('p', 'held-head', held.length === 1
+      ? '1 game is waiting for a check on another phone'
+      : `${held.length} games are waiting for a check on other phones`);
+    const items = held.map((h) => {
+      const row = el('div', 'held-item');
+      const at = h.heldAt ? new Date(h.heldAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+      const text = el('span', 'held-text');
+      text.append(el('strong', '', `${h.winners} ${h.score} ${h.losers}`),
+        el('span', 'held-meta', `${h.gameNo ? `looks like game ${h.gameNo}` : 'possible duplicate'}${at ? ` · held ${at}` : ''}`));
+      row.append(text);
+      if (state.admin) {
+        const clear = el('button', 'btn-chip danger', 'Clear');
+        clear.type = 'button';
+        clear.addEventListener('click', () => clearHeld(h));
+        row.append(clear);
+      }
+      return row;
+    });
+    const hint = state.admin ? [] : [el('p', 'held-hint', 'It isn’t in the sheet. The phone that entered it can keep or remove it.')];
+    note.replaceChildren(head, ...items, ...hint);
+  }
+
+  async function clearHeld(h) {
+    if (!confirm(`Clear this held game?\n${h.winners} ${h.score} ${h.losers}\nIt won't be saved. If it really was a separate game, enter it again.`)) return;
+    await store.queueDismiss(h.id);
+    if (state.day && state.day.held) state.day.held = state.day.held.filter((x) => x.id !== h.id);
+    renderHeldNote();
+    toast('Cleared');
+    uploadSoon();
   }
 
   async function saveGame(event) {
