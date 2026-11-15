@@ -80,6 +80,11 @@ Open the app, go to **Settings**, enter the web app URL and passcode, and tap **
 
 Everyone who has the web app URL and passcode can enter games. Each phone's list shows the whole day from the sheet, with games from other phones marked **Entered on another phone**. Another phone's games appear once it has uploaded them and your phone has connected since. An open app checks about once a minute, and tapping the status at the top checks straight away.
 
+**The same game entered on two phones** is caught two ways:
+
+- **Before saving:** when you're online, tapping **Save game** first fetches the day's latest games from the sheet (for up to 5 seconds, showing "Checking the sheet…"). If a game with the same pairs and score is already there, the app asks before saving it again.
+- **As it's saved:** the script records when each game was entered (hidden `ENTERED` column after `ID`). A new game with the same winning pair, losing pair (either order) and score as one entered within 10 minutes of it is held back, not saved. This check runs under the script's lock, so two phones saving at the same moment, or both offline, can't both get in. The phone shows **1 to check** and the message "Looks like game 5, entered on another phone at 7:02 pm", with **Remove mine** (drops this phone's copy) or **It's a separate game** (saves it). A real rematch more than 10 minutes later is saved normally.
+
 If you try to save a game whose players and score match one already in the list, the app asks before saving it again. Rows typed straight into the sheet appear in the list marked **Typed into the sheet**. The script gives each one an ID (in the hidden ID column, starting `sheet-`) the first time a phone reads that day, so they can be edited and deleted from the app like any other game, within the usual today-only rule or in admin mode.
 
 ## How uploads work

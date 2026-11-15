@@ -30,6 +30,11 @@ const POTM_LABEL = 'PLAYER OF THE MONTH';
 const DAY_HEADERS = ['GAME NO.', 'PLAYER 1', 'PLAYER 2', 'SCORE', 'POINTS', '', 'PLAYER 3', 'PLAYER 4', 'SCORE', 'POINTS', 'NOTES', 'ID'];
 const DAY_WIDTHS = [90, 120, 120, 75, 75, 40, 120, 120, 75, 75, 170];
 const ID_COLUMN = DAY_HEADERS.length;
+// Hidden column after ID: when the game was entered on the phone, for spotting the same game
+// entered twice on two phones.
+const ENTERED_COLUMN = ID_COLUMN + 1;
+const ENTERED_HEADER = 'ENTERED';
+const DUPLICATE_WINDOW_MS = 10 * 60 * 1000; // No doubles game is over in less than this.
 const STAT_HEADERS = ['PLAYER', 'TOTAL\nGAMES PLAYED', 'GAMES WON', 'GAMES LOST', 'WIN\nRATE %', 'POINTS'];
 const STAT_WIDTHS = [130, 100, 85, 85, 85, 80];
 // Pictures in the title row of every POTD and MONTHLY tab, served with the app.
@@ -90,7 +95,7 @@ function doPost(e) {
           touched.add(game.date);
           return { id: game.id, ok: true };
         } catch (err) {
-          return { id: game.id, ok: false, error: err.message };
+          return { id: game.id, ok: false, error: err.message, duplicateOf: err.duplicateOf || null };
         }
       });
       // The games are saved either way; a problem here only affects the award tabs.
@@ -171,6 +176,12 @@ function saveGame_(control, game, admin) {
     return;
   }
 
+  // A new game that looks like one another phone just entered is held back for the phone to confirm.
+  if (!existing) {
+    const duplicate = findDuplicate_(tab, game, [winner1, winner2, loser1, loser2]);
+    if (duplicate) throw duplicate;
+  }
+
   const r = existing || Math.max(tab.getLastRow(), 1) + 1;
   tab.getRange(r, 1, 1, ID_COLUMN).setValues([[
     '=ROW()-1',
@@ -188,6 +199,11 @@ function saveGame_(control, game, admin) {
     safeText_(game.notes),
     game.id,
   ]]);
+  // Kept from the first save, so editing a game later doesn't move its entry time.
+  if (!existing) {
+    ensureEnteredColumn_(tab);
+    tab.getRange(r, ENTERED_COLUMN).setValue(Number(game.enteredAt) || Date.now());
+  }
 }
 
 // Today's date as yyyy-MM-dd, in the time zone set under Project Settings in the Apps Script editor.
@@ -435,6 +451,39 @@ function styleDayTab_(tab) {
   tab.setFrozenRows(1);
   DAY_WIDTHS.forEach((width, i) => tab.setColumnWidth(i + 1, width));
   tab.hideColumns(ID_COLUMN);
+  ensureEnteredColumn_(tab);
+}
+
+// Day tabs made before the ENTERED column existed get it the first time a game is saved to them.
+function ensureEnteredColumn_(tab) {
+  const header = tab.getRange(1, ENTERED_COLUMN);
+  if (String(header.getValue()) === ENTERED_HEADER) return;
+  header.setValue(ENTERED_HEADER).setFontWeight('bold');
+  tab.hideColumns(ENTERED_COLUMN);
+}
+
+// The same game entered on two phones: a new game with the same winning pair, losing pair (either
+// order within each pair) and score as one already on the day, entered within 10 minutes of it.
+// Run inside the lock, on the sheet as it is right now, so two phones saving at once can't both
+// miss each other. Rows typed into the sheet by hand have no entry time and are never matched.
+function findDuplicate_(tab, game, names) {
+  if (game.allowDuplicate || !game.enteredAt || tab.getLastRow() < 2) return null;
+  const key = (a, b) => [String(a).trim().toLowerCase(), String(b).trim().toLowerCase()].sort().join('|');
+  const winners = key(names[0], names[1]);
+  const losers = key(names[2], names[3]);
+  const rows = tab.getRange(2, 1, tab.getLastRow() - 1, ENTERED_COLUMN).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const entered = Number(r[ENTERED_COLUMN - 1]);
+    if (!entered || Math.abs(entered - Number(game.enteredAt)) > DUPLICATE_WINDOW_MS) continue;
+    if (key(r[1], r[2]) !== winners || key(r[6], r[7]) !== losers) continue;
+    if (Number(r[3]) !== game.winnerScore || Number(r[8]) !== game.loserScore) continue;
+    const at = Utilities.formatDate(new Date(entered), Session.getScriptTimeZone(), 'h:mm a').toLowerCase();
+    const err = new Error('Looks like game ' + (i + 1) + ', entered on another phone at ' + at + '.');
+    err.duplicateOf = { gameNo: i + 1, id: String(r[ID_COLUMN - 1]), enteredAt: entered };
+    return err;
+  }
+  return null;
 }
 
 function styleStatsTab_(tab) {

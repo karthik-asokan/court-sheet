@@ -15,6 +15,7 @@
   const MAX_SCORE = 21;
   const RETRY_MS = 20000;
   const REFRESH_MS = 60000; // How often an open app checks for games from other phones.
+  const FETCH_BEFORE_SAVE_MS = 5000; // Longest a new game waits for the sheet's latest games before saving.
 
   const state = {
     date: todayIso(),
@@ -167,9 +168,21 @@
       if (game.otherPhone) names.append(el('span', 'from', !game.id || game.id.startsWith('sheet-') ? 'Typed into the sheet' : 'Entered on another phone'));
       btn.append(el('span', 'game-num', number), names, el('span', 'game-score', score), stateIcon(game));
       if (state.justLanded && state.justLanded.has(game.id)) btn.classList.add('landed');
-      if (store.hasFailed(game)) btn.append(el('span', 'game-error', game.error));
+      const held = store.hasFailed(game) && game.duplicateOf;
+      if (store.hasFailed(game)) btn.append(el('span', held ? 'game-error held' : 'game-error', game.error));
       btn.addEventListener('click', () => startEdit(game.id));
       item.append(btn);
+      // The sheet held this game back as a likely duplicate: let the phone decide.
+      if (held) {
+        const actions = el('div', 'dup-actions');
+        const remove = el('button', 'btn-chip danger', 'Remove mine');
+        const keep = el('button', 'btn-chip', 'It’s a separate game');
+        remove.type = keep.type = 'button';
+        remove.addEventListener('click', () => resolveDuplicate(game.id, false));
+        keep.addEventListener('click', () => resolveDuplicate(game.id, true));
+        actions.append(remove, keep);
+        item.append(actions);
+      }
       list.append(item);
     });
   }
@@ -464,8 +477,11 @@
 
   function renderStatus() {
     const queued = state.games.filter(store.needsUpload);
-    const failed = queued.filter(store.hasFailed).length;
+    const failedGames = queued.filter(store.hasFailed);
+    const failed = failedGames.length;
     const waiting = queued.length - failed;
+    // Held as a possible duplicate, rather than refused: something to check, not to fix.
+    const onlyChecks = failed && failedGames.every((g) => g.duplicateOf);
     const pill = $('status');
     let label;
     let pillState;
@@ -474,7 +490,7 @@
     } else if (state.problem) {
       [label, pillState] = ['Check settings', 'problem'];
     } else if (failed) {
-      [label, pillState] = [`${failed} to fix`, 'problem'];
+      [label, pillState] = [`${failed} to ${onlyChecks ? 'check' : 'fix'}`, onlyChecks ? 'waiting' : 'problem'];
     } else if (state.uploading && waiting) {
       [label, pillState] = ['Uploading…', 'busy'];
     } else if (waiting) {
@@ -744,6 +760,22 @@
     clearError();
   }
 
+  // A game the sheet held back as a likely duplicate: drop this phone's copy, or send it again as
+  // a separate game. It never reached the sheet, so removing it changes nothing there.
+  async function resolveDuplicate(id, keep) {
+    if (keep) {
+      await store.updateGame(id, (g) => ({ ...g, allowDuplicate: true, rev: g.rev + 1, errorRev: null, error: null, duplicateOf: null }));
+      toast('Saving it as a separate game');
+      await refresh();
+      uploadSoon();
+    } else {
+      const game = state.games.find((g) => g.id === id);
+      await store.removeGame(id);
+      await refresh();
+      toast(game && game.duplicateOf ? `Removed. Game ${game.duplicateOf.gameNo} stands.` : 'Removed');
+    }
+  }
+
   async function saveGame(event) {
     event.preventDefault();
     const winnerScore = readScore('winnerScore');
@@ -755,13 +787,26 @@
     }
 
     const fields = { ...state.names, winnerScore, loserScore, notes: state.notes };
+    const editingId = state.editingId;
+    // A new game: first get the day's latest games from the sheet (briefly), so a game another
+    // phone has just entered is caught here. The sheet checks again as it saves, under its lock.
+    if (!editingId && navigator.onLine && state.configured) {
+      const save = $('save');
+      save.disabled = true;
+      save.textContent = 'Checking the sheet…';
+      await Promise.race([uploadSoon(), new Promise((resolve) => setTimeout(resolve, FETCH_BEFORE_SAVE_MS))]);
+      save.disabled = false;
+      renderForm();
+      if (state.editingId !== editingId) return; // Something else changed the form meanwhile.
+    }
     const duplicate = findDuplicate(fields);
     if (duplicate && !confirm(`Game ${duplicate} already has these players and this score. Save it again anyway?`)) return;
+    // Confirmed here, so the sheet shouldn't hold it back again.
+    if (duplicate) fields.allowDuplicate = true;
 
-    const editingId = state.editingId;
     const mine = editingId && state.games.find((g) => g.id === editingId);
     if (mine) {
-      await store.updateGame(editingId, (g) => ({ ...g, ...fields, deleted: false, rev: g.rev + 1, errorRev: null, error: null }));
+      await store.updateGame(editingId, (g) => ({ ...g, ...fields, deleted: false, rev: g.rev + 1, errorRev: null, error: null, duplicateOf: null }));
     } else {
       // A new game, or the first change on this phone to a game from the Sheet.
       await store.putGame({

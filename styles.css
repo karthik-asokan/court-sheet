@@ -536,3 +536,10 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inse
 .cal-day.selected .cal-dot { background: var(--on-court); }
 .cal-key { display: flex; gap: 6px; align-items: center; margin: 12px 2px; color: var(--muted); font-size: 13px; }
 .cal-loading { animation: loading-pulse 1.4s ease-in-out infinite; }
+
+/* A game the sheet held back as a likely duplicate */
+.game-error.held { color: var(--wait); }
+li:has(.dup-actions) .game { border-bottom: 0; }
+.dup-actions { display: flex; gap: 8px; padding: 0 2px 12px 30px; border-bottom: 1px solid var(--line); }
+.btn-chip { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 650; }
+.btn-chip.danger { color: var(--danger); }

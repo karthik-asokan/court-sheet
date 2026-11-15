@@ -76,6 +76,9 @@
       loser2: g.loser2,
       notes: g.notes,
       deleted: g.deleted,
+      // When it was entered on this phone, so the sheet can spot the same game entered twice.
+      enteredAt: g.createdAt,
+      allowDuplicate: Boolean(g.allowDuplicate),
     };
   }
 
@@ -133,9 +136,9 @@
     for (const result of reply.results || []) {
       await updateGame(result.id, (cur) => {
         if (cur.rev !== sentRevs.get(result.id)) return cur; // Edited meanwhile: send it again.
-        if (!result.ok) return { ...cur, errorRev: cur.rev, error: result.error };
+        if (!result.ok) return { ...cur, errorRev: cur.rev, error: result.error, duplicateOf: result.duplicateOf || null };
         if (cur.deleted) return null;
-        return { ...cur, syncedRev: cur.rev, errorRev: null, error: null };
+        return { ...cur, syncedRev: cur.rev, errorRev: null, error: null, duplicateOf: null };
       });
     }
     return reply;
