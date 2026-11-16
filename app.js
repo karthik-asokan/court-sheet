@@ -15,7 +15,8 @@
   const MAX_SCORE = 21;
   const RETRY_MS = 20000;
   const REFRESH_MS = 60000; // How often an open app checks for games from other phones.
-  const FETCH_BEFORE_SAVE_MS = 5000; // Longest a new game waits for the sheet's latest games before saving.
+  const FETCH_BEFORE_SAVE_MS = 3000; // Longest Save waits for the sheet's latest games.
+  const FRESH_MS = 20000; // A day fetched this recently needs no fetch before saving.
 
   const state = {
     date: todayIso(),
@@ -670,7 +671,22 @@
     $('picker-none').hidden = !query || matches.length > 0;
   }
 
+  // The day's games as the sheet has them, fetched while a game is being entered so that Save
+  // rarely has to wait. Uses the light request (just the day's games). One at a time; Save joins
+  // the one already running. Skipped if the day was fetched in the last few seconds.
+  let earlyFetch = null;
+  const dayIsFresh = () => Boolean(state.day && Date.now() - (state.day.fetchedAt || 0) < FRESH_MS);
+  function prefetchDay(force) {
+    if (earlyFetch) return earlyFetch;
+    if (!navigator.onLine || !state.configured || viewOnly() || (!force && (state.editingId || dayIsFresh()))) {
+      return Promise.resolve();
+    }
+    earlyFetch = uploadSoon({ light: true }).finally(() => { earlyFetch = null; });
+    return earlyFetch;
+  }
+
   function openPicker(slot) {
+    prefetchDay(); // Picking players and typing a score gives it plenty of time.
     // Tapping an empty slot fills that one first; a filled slot just opens the picker.
     state.pickerSlot = state.names[slot] ? nextEmptySlot() : slot;
     $('picker-search').value = '';
@@ -856,11 +872,13 @@
     const editingId = state.editingId;
     // A new game: first get the day's latest games from the sheet (briefly), so a game another
     // phone has just entered is caught here. The sheet checks again as it saves, under its lock.
-    if (!editingId && navigator.onLine && state.configured) {
+    // Usually the early fetch (started when the picker opened) has finished, or the day is fresh
+    // anyway, and this doesn't wait at all.
+    if (!editingId && navigator.onLine && state.configured && !dayIsFresh()) {
       const save = $('save');
       save.disabled = true;
       save.textContent = 'Checking the sheet…';
-      await Promise.race([uploadSoon(), new Promise((resolve) => setTimeout(resolve, FETCH_BEFORE_SAVE_MS))]);
+      await Promise.race([prefetchDay(true), new Promise((resolve) => setTimeout(resolve, FETCH_BEFORE_SAVE_MS))]);
       save.disabled = false;
       renderForm();
       if (state.editingId !== editingId) return; // Something else changed the form meanwhile.
@@ -942,7 +960,7 @@
   /* ---------- Uploading ---------- */
 
   // Sends anything waiting and brings back the shown day's games from every phone.
-  async function uploadSoon({ calendarMonths = [] } = {}) {
+  async function uploadSoon({ calendarMonths = [], light = false } = {}) {
     if (!navigator.onLine) {
       registerBackgroundSync();
       renderStatus();
@@ -958,7 +976,7 @@
       state.loadingDate = date;
       renderStatus();
       renderGames();
-      result = await store.upload({ dates: [date], calendarMonths });
+      result = await store.upload({ dates: [date], calendarMonths, light });
       if (result.state === 'busy') {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;

@@ -100,11 +100,14 @@
     }
   }
 
-  async function exchange(url, passcode, adminPasscode, batch, dates, calendarMonths) {
+  async function exchange(url, passcode, adminPasscode, batch, dates, calendarMonths, light) {
     const sentRevs = new Map(batch.map((g) => [g.id, g.rev]));
     await Promise.all(batch.map((g) => updateGame(g.id, (cur) => ({ ...cur, everSent: true }))));
 
     const body = { passcode, games: batch.map(toPayload), dates };
+    // Just the day's games, for the quick check while a game is entered. Uploads still get the full
+    // reply, so the awards stay up to date after a game goes in.
+    if (light && !batch.length) body.light = true;
     // Held games dropped on this phone or cleared by an admin, to take off the shared list.
     const dismissing = (await getSetting('dismissHeld')) || [];
     if (dismissing.length) body.dismissHeld = dismissing;
@@ -136,7 +139,10 @@
       await setSetting('dismissHeld', still);
     }
     for (const [date, rows] of Object.entries(reply.days || {})) {
-      const award = (reply.awards && reply.awards[date]) || null; // Older scripts send none.
+      // A light reply has no awards: keep the ones this phone already has for the day.
+      const award = reply.light
+        ? ((await getSetting('day:' + date)) || {}).award || null
+        : (reply.awards && reply.awards[date]) || null; // Older scripts send none.
       const held = (reply.held && reply.held[date]) || [];
       await setSetting('day:' + date, { rows, award, held, fetchedAt: Date.now() });
     }
@@ -167,7 +173,7 @@
   }
 
   // Always makes at least one request, which also brings back the latest games for `dates`.
-  async function uploadAll(dates, calendarMonths) {
+  async function uploadAll(dates, calendarMonths, light) {
     const url = await getSetting('url');
     const passcode = await getSetting('passcode');
     const adminPasscode = await getSetting('adminPasscode');
@@ -178,7 +184,7 @@
       for (;;) {
         const queue = (await allGames()).filter((g) => needsUpload(g) && !hasFailed(g));
         if (!queue.length && lastReply) break;
-        lastReply = await exchange(url, passcode, adminPasscode, queue.slice(0, BATCH_SIZE), dates, calendarMonths);
+        lastReply = await exchange(url, passcode, adminPasscode, queue.slice(0, BATCH_SIZE), dates, calendarMonths, light);
       }
     } catch (err) {
       const state = err.rejected ? 'rejected' : 'network';
@@ -190,12 +196,12 @@
   }
 
   // Page and service worker may both try at once; only one runs.
-  async function upload({ dates = [], calendarMonths = [] } = {}) {
+  async function upload({ dates = [], calendarMonths = [], light = false } = {}) {
     if (root.navigator.locks) {
       return root.navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) =>
-        lock ? uploadAll(dates, calendarMonths) : { state: 'busy' });
+        lock ? uploadAll(dates, calendarMonths, light) : { state: 'busy' });
     }
-    return uploadAll(dates, calendarMonths);
+    return uploadAll(dates, calendarMonths, light);
   }
 
   root.CourtSheet = {

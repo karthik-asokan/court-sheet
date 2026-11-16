@@ -121,6 +121,22 @@ function doPost(e) {
 
   // Send back every game on the days asked about, so each phone sees what the others entered.
   const dates = (request.dates || []).concat(games.map((g) => g.date)).filter((d) => ISO_DATE.test(String(d)));
+  // A light request (the app's quick check for duplicates while a game is being entered) only
+  // needs the day's games, so it skips the awards, month and quarter files and calendar.
+  if (request.light) {
+    const lightDays = {};
+    dates.forEach((date) => { lightDays[date] = readDay_(date); });
+    return reply_({
+      ok: true,
+      light: true,
+      results: results,
+      days: lightDays,
+      held: readHeld_(control, dates),
+      admin: admin,
+      adminTried: Boolean(request.adminPasscode),
+      warnings: warnings,
+    });
+  }
   if (games.length) SpreadsheetApp.flush(); // So the award formulas below reflect these games.
   const days = {};
   const awards = {};
