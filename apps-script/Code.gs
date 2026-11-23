@@ -77,6 +77,8 @@ function setUp() {
 // moved by themselves the first time the app uses them, so running this is optional.
 function updateColumnOrder() {
   const control = SpreadsheetApp.getActiveSpreadsheet();
+  const props = PropertiesService.getScriptProperties();
+  const started = Date.now();
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
   try {
@@ -86,8 +88,15 @@ function updateColumnOrder() {
       if (file.isTrashed()) continue;
       const name = file.getName();
       if (name !== TEMPLATE_NAME && name.indexOf(FILE_PREFIX) !== 0) continue;
+      if (props.getProperty('layout2:' + file.getId())) continue; // Already done.
+      // Google stops a run after about 6 minutes: stop in good time and carry on next run.
+      if (Date.now() - started > 4 * 60 * 1000) {
+        console.log('Stopped before the time limit. Run updateColumnOrder again to carry on.');
+        return;
+      }
       updateMonthLayout_(control, SpreadsheetApp.openById(file.getId()));
     }
+    console.log('All files are in the new column order.');
   } finally {
     lock.releaseLock();
   }
@@ -504,20 +513,28 @@ function updateMonthLayout_(control, ss) {
   const props = PropertiesService.getScriptProperties();
   const key = 'layout2:' + ss.getId();
   if (props.getProperty(key)) return;
-  let moved = false;
   ss.getSheets().forEach((tab) => {
-    if (DAY_TAB.test(tab.getName()) || tab.getName() === DAY_PROTO) moved = moveTabToNewOrder_(tab) || moved;
+    if (DAY_TAB.test(tab.getName()) || tab.getName() === DAY_PROTO) moveTabToNewOrder_(tab);
   });
+  // Rebuilt for every file not yet marked done, even if an earlier run that didn't finish had
+  // already moved its day tabs, so a half-moved month is always repaired.
   const m = /_(\w{3})' (\d\d)$/.exec(ss.getName()); // A month file, e.g. "..._Nov' 26"
-  if (moved && m) {
-    const month = String(MONTHS.indexOf(m[1].toUpperCase()) + 1).padStart(2, '0');
-    ss.getSheets().filter((t) => DAY_TAB.test(t.getName())).forEach((t) => {
-      const date = '20' + m[2] + '-' + month + '-' + t.getName().slice(0, 2);
-      refreshDay_(control, date);
-      forgetQuarter_(date);
-    });
-  }
+  if (m) rebuildMonthStats_(control, ss, '20' + m[2], MONTHS.indexOf(m[1].toUpperCase()) + 1);
   props.setProperty(key, 'done');
+  console.log('Column order updated: ' + ss.getName());
+}
+
+// Rewrites every POTD tab in a month file once, then the MONTHLY tab once.
+function rebuildMonthStats_(control, ss, year, month) {
+  const mon = MONTHS[month - 1];
+  const days = ss.getSheets().filter((t) => DAY_TAB.test(t.getName()) && t.getLastRow() >= 2);
+  days.forEach((t) => {
+    const potd = ss.getSheetByName(t.getName() + ' POTD');
+    if (potd) writeStats_(potd, 'POTD\n\n' + t.getName().slice(0, 2) + '-' + mon + '-' + year, statsPlayers_(control, [t]), [t.getName()], POTD_LABEL);
+  });
+  const monthly = ss.getSheetByName(MONTHLY);
+  if (monthly) writeStats_(monthly, 'POTM\n\n' + mon + "' " + year, statsPlayers_(control, days), days.map((t) => t.getName()), POTM_LABEL);
+  forgetQuarter_(year + '-' + String(month).padStart(2, '0') + '-01');
 }
 
 // Before a request touches these dates, moves their month files to the new order if needed.
