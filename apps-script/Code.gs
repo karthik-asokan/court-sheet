@@ -27,9 +27,21 @@ const DAY_PROTO = 'DAY';
 const POTD_PROTO = 'DAY POTD';
 const POTD_LABEL = 'PLAYER OF THE DAY';
 const POTM_LABEL = 'PLAYER OF THE MONTH';
-const DAY_HEADERS = ['GAME NO.', 'PLAYER 1', 'PLAYER 2', 'SCORE', 'POINTS', '', 'PLAYER 3', 'PLAYER 4', 'SCORE', 'POINTS', 'NOTES', 'ID'];
-const DAY_WIDTHS = [90, 120, 120, 75, 75, 40, 120, 120, 75, 75, 170];
-const ID_COLUMN = DAY_HEADERS.length;
+// The day games tab's columns (1 = A). To change the order, change the numbers here (and the
+// headers below): every write, read and formula, including POTD and MONTHLY, follows them.
+const DAY = {
+  no: 1, winner1: 2, winner2: 3, winScore: 4, loseScore: 5, loser1: 6, loser2: 7,
+  winPoints: 8, losePoints: 9, notes: 11, id: 12,
+};
+const DAY_HEADERS = ['GAME NO.', 'WINNER 1', 'WINNER 2', 'WINNING SCORE', 'LOSING SCORE', 'LOSER 1', 'LOSER 2',
+  'WINNER POINTS', 'LOSER POINTS', '', 'NOTES', 'ID'];
+const DAY_WIDTHS = [80, 120, 120, 95, 95, 120, 120, 95, 95, 20, 170];
+const ID_COLUMN = DAY.id;
+const colLetter_ = (n) => String.fromCharCode(64 + n);
+const cell_ = (row, key) => row[DAY[key] - 1]; // A field from a day-tab row read with getValues().
+// The layout used until November 2026 (VS in F, losers after it). Tabs still in it are moved to
+// the order above the first time their month file is used.
+const OLD_DAY = { winner1: 2, winner2: 3, winScore: 4, winPoints: 5, loser1: 7, loser2: 8, loseScore: 9, losePoints: 10, notes: 11, id: 12 };
 // Hidden column after ID: when the game was entered on the phone, for spotting the same game
 // entered twice on two phones.
 const ENTERED_COLUMN = ID_COLUMN + 1;
@@ -57,6 +69,28 @@ function doGet() {
 function setUp() {
   ensurePlayersTab_(SpreadsheetApp.getActiveSpreadsheet());
   template_();
+  updateColumnOrder();
+}
+
+// Moves the template and every month file in the games folder to the column order in DAY, and
+// rebuilds their POTD and MONTHLY tabs to match. Safe to run more than once. Month files are also
+// moved by themselves the first time the app uses them, so running this is optional.
+function updateColumnOrder() {
+  const control = SpreadsheetApp.getActiveSpreadsheet();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    const files = folder_().getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      if (file.isTrashed()) continue;
+      const name = file.getName();
+      if (name !== TEMPLATE_NAME && name.indexOf(FILE_PREFIX) !== 0) continue;
+      updateMonthLayout_(control, SpreadsheetApp.openById(file.getId()));
+    }
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function doPost(e) {
@@ -81,6 +115,12 @@ function doPost(e) {
 
   const control = SpreadsheetApp.getActiveSpreadsheet();
   const games = request.games || [];
+  // Month files still in the old column order are moved to the new one first (once per file).
+  try {
+    updateLayouts_(control, (request.dates || []).concat(games.map((g) => g.date)).filter((d) => ISO_DATE.test(String(d))));
+  } catch (err) {
+    return reply_({ ok: false, error: 'The sheet is busy. Try again in a moment.' });
+  }
   // Held games a phone has dropped ("Remove mine") or an admin has cleared, to take off the list.
   const dismiss = (request.dismissHeld || []).map(String).slice(0, 50);
   let results = [];
@@ -213,22 +253,11 @@ function saveGame_(control, game, admin) {
   dismissHeld_(control, [game.id]); // Saved after all ("It's a separate game").
 
   const r = existing || Math.max(tab.getLastRow(), 1) + 1;
-  tab.getRange(r, 1, 1, ID_COLUMN).setValues([[
-    '=ROW()-1',
-    safeText_(winner1),
-    safeText_(winner2),
-    game.winnerScore,
-    // Winner: 2 for a deuce win (above 15) or holding the loser to 7 or below, otherwise 1.
-    `=IF(OR(D${r}="",I${r}=""),"",IF(OR(D${r}>15,I${r}<=7),2,1))`,
-    'VS',
-    safeText_(loser1),
-    safeText_(loser2),
-    game.loserScore,
-    // Loser: -1 when held to 7 or below, otherwise 0.
-    `=IF(OR(D${r}="",I${r}=""),"",IF(I${r}<=7,-1,0))`,
-    safeText_(game.notes),
-    game.id,
-  ]]);
+  tab.getRange(r, 1, 1, ID_COLUMN).setValues([dayRow_(r, {
+    winner1: safeText_(winner1), winner2: safeText_(winner2), winScore: game.winnerScore,
+    loseScore: game.loserScore, loser1: safeText_(loser1), loser2: safeText_(loser2),
+    notes: safeText_(game.notes), id: game.id,
+  })]);
   // Kept from the first save, so editing a game later doesn't move its entry time.
   if (!existing) {
     ensureEnteredColumn_(tab);
@@ -304,15 +333,15 @@ function readDay_(date) {
   }
   return values
     .map((r) => ({
-      id: text(r[11]),
+      id: text(cell_(r, 'id')),
       sameAs: text(r[SAME_AS_COLUMN - 1] === undefined ? '' : r[SAME_AS_COLUMN - 1]),
-      winner1: text(r[1]),
-      winner2: text(r[2]),
-      winnerScore: score(r[3]),
-      loserScore: score(r[8]),
-      loser1: text(r[6]),
-      loser2: text(r[7]),
-      notes: text(r[10]),
+      winner1: text(cell_(r, 'winner1')),
+      winner2: text(cell_(r, 'winner2')),
+      winnerScore: score(cell_(r, 'winScore')),
+      loserScore: score(cell_(r, 'loseScore')),
+      loser1: text(cell_(r, 'loser1')),
+      loser2: text(cell_(r, 'loser2')),
+      notes: text(cell_(r, 'notes')),
     }))
     .filter((g) => g.winner1 || g.winner2 || g.loser1 || g.loser2);
 }
@@ -403,7 +432,7 @@ function readStats_(tab, label) {
   return { names: points === null ? [] : names, points: points, table: table };
 }
 
-const hasPlayers_ = (r) => [r[1], r[2], r[6], r[7]].some((v) => String(v).trim());
+const hasPlayers_ = (r) => ['winner1', 'winner2', 'loser1', 'loser2'].some((k) => String(cell_(r, k)).trim());
 
 // Gives every hand-typed row its own ID (starting "sheet-") in the hidden ID column. Done under
 // the lock and re-read inside it, so two phones reading at once can't give one row two IDs.
@@ -420,6 +449,91 @@ function assignIds_(tab) {
       tab.getRange(i + 2, ID_COLUMN).setValue(r[ID_COLUMN - 1]);
     });
     return values;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// One day-tab row in the order set by DAY, with the game number and points as formulas.
+function dayRow_(r, v) {
+  const row = new Array(ID_COLUMN).fill('');
+  const w = colLetter_(DAY.winScore) + r;
+  const l = colLetter_(DAY.loseScore) + r;
+  Object.keys(v).forEach((key) => { row[DAY[key] - 1] = v[key]; });
+  row[DAY.no - 1] = '=ROW()-1';
+  // Winners: 2 for a deuce win (above 15) or holding the losers to 7 or below, otherwise 1.
+  row[DAY.winPoints - 1] = `=IF(OR(${w}="",${l}=""),"",IF(OR(${w}>15,${l}<=7),2,1))`;
+  // Losers: -1 when held to 7 or below, otherwise 0.
+  row[DAY.losePoints - 1] = `=IF(OR(${w}="",${l}=""),"",IF(${l}<=7,-1,0))`;
+  return row;
+}
+
+/* ---------- Changing the column order ---------- */
+
+// A day tab still in the old order has "PLAYER 3" heading the old loser column.
+function isOldLayout_(tab) {
+  return String(tab.getRange(1, OLD_DAY.loser1).getValue()).trim().toUpperCase() === 'PLAYER 3';
+}
+
+// Rewrites one day tab from the old column order to the one in DAY: same games, same IDs, entry
+// times and notes, with the game number and points as fresh formulas.
+function moveTabToNewOrder_(tab) {
+  if (!isOldLayout_(tab)) return false;
+  const last = tab.getLastRow();
+  if (last >= 2) {
+    const old = tab.getRange(2, 1, last - 1, ID_COLUMN).getValues();
+    const rows = old.map((r, i) => {
+      const o = (key) => r[OLD_DAY[key] - 1];
+      if (!['winner1', 'winner2', 'loser1', 'loser2'].some((k) => String(o(k)).trim())) return new Array(ID_COLUMN).fill('');
+      const text = (v) => (typeof v === 'string' ? safeText_(v) : v);
+      return dayRow_(i + 2, {
+        winner1: text(o('winner1')), winner2: text(o('winner2')), winScore: o('winScore'), loseScore: o('loseScore'),
+        loser1: text(o('loser1')), loser2: text(o('loser2')), notes: text(o('notes')), id: o('id'),
+      });
+    });
+    tab.getRange(2, 1, rows.length, ID_COLUMN).setValues(rows);
+  }
+  styleDayTab_(tab);
+  return true;
+}
+
+// Moves a whole month file (or the template) to the new order: every day tab and the hidden DAY
+// tab, then rebuilds each POTD and the MONTHLY tab so their formulas point at the new columns.
+// Recorded per file, so it only ever happens once. Call it while holding the lock.
+function updateMonthLayout_(control, ss) {
+  const props = PropertiesService.getScriptProperties();
+  const key = 'layout2:' + ss.getId();
+  if (props.getProperty(key)) return;
+  let moved = false;
+  ss.getSheets().forEach((tab) => {
+    if (DAY_TAB.test(tab.getName()) || tab.getName() === DAY_PROTO) moved = moveTabToNewOrder_(tab) || moved;
+  });
+  const m = /_(\w{3})' (\d\d)$/.exec(ss.getName()); // A month file, e.g. "..._Nov' 26"
+  if (moved && m) {
+    const month = String(MONTHS.indexOf(m[1].toUpperCase()) + 1).padStart(2, '0');
+    ss.getSheets().filter((t) => DAY_TAB.test(t.getName())).forEach((t) => {
+      const date = '20' + m[2] + '-' + month + '-' + t.getName().slice(0, 2);
+      refreshDay_(control, date);
+      forgetQuarter_(date);
+    });
+  }
+  props.setProperty(key, 'done');
+}
+
+// Before a request touches these dates, moves their month files to the new order if needed.
+// Cheap once done: a file already moved is known from the script's properties without opening it.
+function updateLayouts_(control, dates) {
+  const props = PropertiesService.getScriptProperties();
+  const months = dates.map((d) => d.slice(0, 7)).filter((m, i, all) => all.indexOf(m) === i);
+  const pending = months.filter((m) => {
+    const id = props.getProperty('file:' + m);
+    return !(id && props.getProperty('layout2:' + id));
+  }).map((m) => monthFile_(m + '-01', false)).filter((ss) => ss && !props.getProperty('layout2:' + ss.getId()));
+  if (!pending.length) return;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    pending.forEach((ss) => updateMonthLayout_(control, ss));
   } finally {
     lock.releaseLock();
   }
@@ -489,7 +603,7 @@ function styleDayTab_(tab) {
   tab.getRange(1, 1, 1, DAY_HEADERS.length).setValues([DAY_HEADERS])
     .setFontWeight('bold').setFontLine('underline');
   tab.getRange(1, 1, tab.getMaxRows(), ID_COLUMN - 1).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  tab.getRange(1, 11, tab.getMaxRows(), 1).setHorizontalAlignment('left');
+  tab.getRange(1, DAY.notes, tab.getMaxRows(), 1).setHorizontalAlignment('left');
   tab.setFrozenRows(1);
   DAY_WIDTHS.forEach((width, i) => tab.setColumnWidth(i + 1, width));
   tab.hideColumns(ID_COLUMN);
@@ -513,8 +627,9 @@ function findIdentical_(tab, game, names) {
   const key = (a, b) => [String(a).trim().toLowerCase(), String(b).trim().toLowerCase()].sort().join('|');
   const rows = tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues();
   const match = rows.find((r) => String(r[ID_COLUMN - 1]) !== game.id
-    && key(r[1], r[2]) === key(names[0], names[1]) && key(r[6], r[7]) === key(names[2], names[3])
-    && Number(r[3]) === game.winnerScore && Number(r[8]) === game.loserScore);
+    && key(cell_(r, 'winner1'), cell_(r, 'winner2')) === key(names[0], names[1])
+    && key(cell_(r, 'loser1'), cell_(r, 'loser2')) === key(names[2], names[3])
+    && Number(cell_(r, 'winScore')) === game.winnerScore && Number(cell_(r, 'loseScore')) === game.loserScore);
   return match ? String(match[ID_COLUMN - 1]) : '';
 }
 
@@ -532,8 +647,8 @@ function findDuplicate_(tab, game, names) {
     const r = rows[i];
     const entered = Number(r[ENTERED_COLUMN - 1]);
     if (!entered || Math.abs(entered - Number(game.enteredAt)) > DUPLICATE_WINDOW_MS) continue;
-    if (key(r[1], r[2]) !== winners || key(r[6], r[7]) !== losers) continue;
-    if (Number(r[3]) !== game.winnerScore || Number(r[8]) !== game.loserScore) continue;
+    if (key(cell_(r, 'winner1'), cell_(r, 'winner2')) !== winners || key(cell_(r, 'loser1'), cell_(r, 'loser2')) !== losers) continue;
+    if (Number(cell_(r, 'winScore')) !== game.winnerScore || Number(cell_(r, 'loseScore')) !== game.loserScore) continue;
     const at = Utilities.formatDate(new Date(entered), Session.getScriptTimeZone(), 'h:mm a').toLowerCase();
     const err = new Error('Looks like game ' + (i + 1) + ', entered on another phone at ' + at + '.');
     err.duplicateOf = { gameNo: i + 1, id: String(r[ID_COLUMN - 1]), enteredAt: entered };
@@ -580,6 +695,7 @@ function dayTab_(ss, date, create) {
 
   const position = dayPosition_(ss, date);
   const tab = ss.insertSheet(name, position, { template: dayProto });
+  if (isOldLayout_(tab)) styleDayTab_(tab); // Copied from a template in the old column order.
   tab.showSheet();
   ss.insertSheet(name + ' POTD', position + 1, { template: potdProto }).showSheet();
   return tab;
@@ -626,8 +742,8 @@ function statsPlayers_(control, dayTabs) {
   const names = activePlayers_(control);
   dayTabs.forEach((tab) => {
     if (tab.getLastRow() < 2) return;
-    tab.getRange(2, 2, tab.getLastRow() - 1, 7).getValues().forEach((r) => {
-      [r[0], r[1], r[5], r[6]].forEach((v) => names.push(String(v).trim()));
+    tab.getRange(2, 1, tab.getLastRow() - 1, ID_COLUMN).getValues().forEach((r) => {
+      ['winner1', 'winner2', 'loser1', 'loser2'].forEach((k) => names.push(String(cell_(r, k)).trim()));
     });
   });
   const seen = new Set();
@@ -654,10 +770,12 @@ function writeStats_(tab, title, players, dayNames, label) {
   const total = (part) => (dayNames.length ? dayNames.map((d) => part(q(d))).join('+') : '0');
   const rows = players.map((player, i) => {
     const r = i + 3;
-    const won = (t) => `COUNTIF(${t}!$B:$C,$A${r})`;
-    const lost = (t) => `COUNTIF(${t}!$G:$H,$A${r})`;
-    const points = (t) => `SUMIF(${t}!$B:$B,$A${r},${t}!$E:$E)+SUMIF(${t}!$C:$C,$A${r},${t}!$E:$E)`
-      + `+SUMIF(${t}!$G:$G,$A${r},${t}!$J:$J)+SUMIF(${t}!$H:$H,$A${r},${t}!$J:$J)`;
+    const c = (key) => '$' + colLetter_(DAY[key]); // A day-tab column, e.g. $B
+    const won = (t) => `COUNTIF(${t}!${c('winner1')}:${c('winner2')},$A${r})`;
+    const lost = (t) => `COUNTIF(${t}!${c('loser1')}:${c('loser2')},$A${r})`;
+    const sumif = (t, who, pts) => `SUMIF(${t}!${c(who)}:${c(who)},$A${r},${t}!${c(pts)}:${c(pts)})`;
+    const points = (t) => [sumif(t, 'winner1', 'winPoints'), sumif(t, 'winner2', 'winPoints'),
+      sumif(t, 'loser1', 'losePoints'), sumif(t, 'loser2', 'losePoints')].join('+');
     return [
       safeText_(player),
       '=' + total((t) => `${won(t)}+${lost(t)}`),
